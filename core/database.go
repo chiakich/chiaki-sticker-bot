@@ -73,6 +73,7 @@ func initDB(dbname string) error {
 		Net:                  "tcp",
 		Addr:                 addr,
 		AllowNativePasswords: true,
+		TLSConfig:            "true",
 		Params:               params,
 	}
 	db, _ = sql.Open("mysql", dsn.FormatDSN())

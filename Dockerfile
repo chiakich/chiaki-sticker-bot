@@ -34,4 +34,4 @@ COPY --from=builder /moe-sticker-bot /usr/local/bin/moe-sticker-bot
 
 VOLUME ["/data"]
 
-ENTRYPOINT ["sh", "-c", "moe-sticker-bot --data_dir=/data --log_level=info --bot_token=$BOT_TOKEN"]
+ENTRYPOINT ["sh", "-c", "moe-sticker-bot --data_dir=/data --log_level=info --bot_token=$BOT_TOKEN --db_addr=$DB_ADDR --db_user=$DB_USER --db_pass=$DB_PASS"]

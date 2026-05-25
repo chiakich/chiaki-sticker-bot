@@ -8,7 +8,7 @@ import (
 )
 
 // Workers pool for converting webm
-var wpConvertWebm, _ = ants.NewPoolWithFunc(4, wConvertWebm)
+var wpConvertWebm, _ = ants.NewPoolWithFunc(1, wConvertWebm)
 
 // Accepts *LineFile
 func wConvertWebm(i interface{}) {

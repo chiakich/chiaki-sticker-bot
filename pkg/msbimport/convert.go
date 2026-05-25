@@ -228,7 +228,7 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 	} else {
 		baseargs = append(baseargs, "-vf", "scale=512:512:force_original_aspect_ratio=decrease")
 	}
-	baseargs = append(baseargs, "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9", "-cpu-used", "5")
+	baseargs = append(baseargs, "-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9", "-cpu-used", "5")
 
 	for rc := 0; rc < 4; rc++ {
 		rcargs := []string{}
@@ -282,7 +282,7 @@ func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
 	} else {
 		args = append(args, "-vf", "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos")
 	}
-	args = append(args, "-pix_fmt", "yuva420p",
+	args = append(args, "-threads", "1", "-pix_fmt", "yuva420p",
 		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
 		"-to", "00:00:02.800", "-r", "30", "-an", "-y", pathOut)
 

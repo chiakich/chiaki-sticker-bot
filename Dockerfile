@@ -5,7 +5,7 @@ WORKDIR /webapp
 COPY web/webapp3/package.json web/webapp3/package-lock.json ./
 RUN npm ci
 COPY web/webapp3/ ./
-RUN npm run build
+RUN PUBLIC_URL=/webapp npm run build
 
 # Stage 2: Build Go binary
 FROM golang:1.22-bookworm AS go-builder

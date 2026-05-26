@@ -46,7 +46,7 @@ func parseKakaoLink(link string, ld *LineData) (string, error) {
 	}
 
 	log.Debugln("Parsed kakao link:", link)
-	log.Debugln(kakaoJson.Result)
+	log.Debugln(kakaoJson.Hero, kakaoJson.Contents)
 
 	for _, item := range kakaoJson.Contents.Items {
 		if item.AnimatedUrl != "" {

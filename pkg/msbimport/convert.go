@@ -179,6 +179,18 @@ func IMToApng(f string) (string, error) {
 	return pathOut, err
 }
 
+// PythonWebpToGif converts an animated WebP to GIF using Pillow.
+// Used as fallback when ffmpeg cannot decode animated WebP directly.
+func PythonWebpToGif(f string) (string, error) {
+	pathOut := f + ".gif"
+	out, err := exec.Command("msb_webp_to_gif.py", f, pathOut).CombinedOutput()
+	if err != nil {
+		log.Warnln("PythonWebpToGif ERROR:", string(out))
+		return "", err
+	}
+	return pathOut, nil
+}
+
 // If the source is IMAGE, convert to WEBP,
 // If the source is VIDEO, convert to WEBM
 func ConverMediaToTGStickerSmart(f string, isCustomEmoji bool) (string, error) {
@@ -244,12 +256,12 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 			outStr := string(out)
 			webpUnsupported := strings.Contains(outStr, "skipping unsupported chunk: ANIM") ||
 				strings.Contains(outStr, "image data not found")
-			// Only attempt APNG fallback once (not if input is already APNG).
-			if webpUnsupported && !strings.HasSuffix(f, ".apng") {
-				log.Warnln("Trying to convert to APNG first.")
-				f2, err2 := IMToApng(f)
+			// Only attempt GIF fallback once (not if input is already a GIF).
+			if webpUnsupported && !strings.HasSuffix(f, ".gif") {
+				log.Warnln("Trying to convert animated WebP to GIF first.")
+				f2, err2 := PythonWebpToGif(f)
 				if err2 != nil {
-					log.Warnln("IMToApng ERROR:", err2)
+					log.Warnln("PythonWebpToGif ERROR:", err2)
 					return pathOut, err2
 				}
 				return FFToWebmTGVideo(f2, isCustomEmoji)

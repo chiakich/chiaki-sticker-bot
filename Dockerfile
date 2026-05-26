@@ -38,7 +38,8 @@ RUN pip3 install --break-system-packages rlottie-python emoji
 COPY tools/msb_emoji.py /usr/local/bin/msb_emoji.py
 COPY tools/msb_kakao_decrypt.py /usr/local/bin/msb_kakao_decrypt.py
 COPY tools/msb_rlottie.py /usr/local/bin/msb_rlottie.py
-RUN chmod +x /usr/local/bin/msb_emoji.py /usr/local/bin/msb_kakao_decrypt.py /usr/local/bin/msb_rlottie.py
+COPY tools/msb_webp_to_gif.py /usr/local/bin/msb_webp_to_gif.py
+RUN chmod +x /usr/local/bin/msb_emoji.py /usr/local/bin/msb_kakao_decrypt.py /usr/local/bin/msb_rlottie.py /usr/local/bin/msb_webp_to_gif.py
 
 COPY --from=go-builder /moe-sticker-bot /usr/local/bin/moe-sticker-bot
 COPY --from=webapp-builder /webapp/build /webapp/build

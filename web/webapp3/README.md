@@ -1,4 +1,6 @@
-# WebApp for moe-sticker-bot
+# WebApp for chiaki-sticker-bot
+
+Forked from [star-39/moe-sticker-bot](https://github.com/star-39/moe-sticker-bot).
 
 Supports editing emoji and drag n drop to sort.
 

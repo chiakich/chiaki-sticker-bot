@@ -1,6 +1,6 @@
 # Moe-Sticker-Bot Import Component (msbimport)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/star-39/moe-sticker-bot/pkg/msbimport.svg)](https://pkg.go.dev/github.com/star-39/moe-sticker-bot/pkg/msbimport)
+[![Go Reference](https://pkg.go.dev/badge/github.com/akira02/chiaki-sticker-bot/pkg/msbimport.svg)](https://pkg.go.dev/github.com/akira02/chiaki-sticker-bot/pkg/msbimport)
 
 ## Description
 This package is intended to fetch, parse, download and convert LINE and KakaoTalk Stickers from share link.
@@ -13,9 +13,9 @@ It is designed to be able to operate independentaly from moe-sticker-bot core so
 
 
 ## CLI Usage/終端機程式使用
-Source code of CLI is on: [/moe-sticker-bot/cmd/msbimport](https://github.com/star-39/moe-sticker-bot/tree/master/cmd/msbimport)
+Source code of CLI is on: [/moe-sticker-bot/cmd/msbimport](https://github.com/akira02/chiaki-sticker-bot/tree/master/cmd/msbimport)
 
-Download `msbimport`： 下載`msbimport`： https://github.com/star-39/moe-sticker-bot/releases
+Download `msbimport`： 下載`msbimport`： https://github.com/akira02/chiaki-sticker-bot/releases
 
 Install dependencies:
 ```bash
@@ -59,12 +59,12 @@ msbimport --link https://store.line.me/stickershop/product/27286 --convert --jso
 A typical workflow is to call `parseImportLink` then `prepareImportStickers`.
 
 ```
-go get -u https://github.com/star-39/moe-sticker-bot
+go get -u https://github.com/akira02/chiaki-sticker-bot
 ```
 
 
 ```go
-import "github.com/star-39/moe-sticker-bot/pkg/msbimport"
+import "github.com/akira02/chiaki-sticker-bot/pkg/msbimport"
 
 //Create a context, which can be used to interrupt the process.
 ctx, _ := context.WithCancel(context.Background())

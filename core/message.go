@@ -16,14 +16,14 @@ import (
 
 func sendStartMessage(c tele.Context) error {
 	message := `
-Hi! I'm <a href="https://github.com/star-39/moe-sticker-bot">moe_sticker_bot</a>! Please:
+Hi! I'm a sticker bot forked from <a href="https://github.com/akira02/chiaki-sticker-bot">moe-sticker-bot</a>! Please:
 • Send <b>LINE/Kakao sticker share link</b> to import or download.
-• Send <b>Telegram sticker/link/GIF</b> to download or export to WhatsApp.
+• Send <b>Telegram sticker/link/GIF</b> to download.
 • Send <b>keywords</b> to search sticker sets.
 • Tap to <b>/create</b> or <b>/manage</b> sticker set and CustomEmoji.
 • Tap to check all available <b>/command_list</b>.
 
-你好! 歡迎使用<a href="https://github.com/star-39/moe-sticker-bot">萌萌貼圖BOT</a>! 請：
+你好! 歡迎使用<a href="https://github.com/akira02/chiaki-sticker-bot">萌萌貼圖BOT</a>! 請：
 • 傳送<b>LINE/kakao貼圖包的分享連結</b>來匯入或下載.
 • 傳送<b>Telegram貼圖/連結/GIF</b>來下載.
 • 傳送<b>關鍵字</b>來搜尋貼圖包.
@@ -48,9 +48,10 @@ func sendCommandList(c tele.Context) error {
 
 func sendAboutMessage(c tele.Context) {
 	c.Send(fmt.Sprintf(`
-<b>Please star for this project on Github if you like this bot!
+<b>Please star this project on Github if you like this bot!
 如果您喜歡這個bot, 歡迎在Github給本專案標Star喔!
-https://github.com/star-39/moe-sticker-bot</b>
+https://github.com/akira02/chiaki-sticker-bot</b>
+Forked from the great work of <a href="https://github.com/star-39/moe-sticker-bot">star-39/moe-sticker-bot</a>.
 Thank you @StickerGroup for feedbacks and advices!
 <code>
 This free(as in freedom) software is released under the GPLv3 License.
@@ -70,7 +71,7 @@ func sendFAQ(c tele.Context) {
 	c.Send(fmt.Sprintf(`
 <b>Please hit Star for this project on Github if you like this bot!
 如果您喜歡這個bot, 歡迎在Github給本專案標Star喔!
-https://github.com/star-39/moe-sticker-bot</b>
+https://github.com/akira02/chiaki-sticker-bot</b>
 ------------------------------------
 <b>Q: I got stucked! I can't quit from command!
 我卡住了! 我沒辦法從指令中退出!</b>
@@ -92,7 +93,7 @@ A: It's you of course. You can manage them through /manage or Telegram's officia
 func sendChangelog(c tele.Context) error {
 	return c.Send(`
 Details: 詳細:
-https://github.com/star-39/moe-sticker-bot#changelog
+https://github.com/akira02/chiaki-sticker-bot#changelog
 v2.5.0-RC1(20240528)
 * Support mix-typed sticker set.
 * You can add video to static set and vice versa.
@@ -167,7 +168,7 @@ No one else could see or use the stored user identifier.
 All the data being stored is encrypted.
 This bot will never share any of the stored data to anyone or to anywhere else.
 The bot server is physically located at Osaka,Japan. Local laws might apply.
-This bot is free and open source software, you can see https://github.com/star-39/moe-sticker-bot/blob/master/core/database.go
+This bot is free and open source software, you can see https://github.com/akira02/chiaki-sticker-bot/blob/master/core/database.go
 to investigate how the bot store and process the stored data.
 
 <b>私隱聲明:</b>
@@ -182,7 +183,7 @@ to investigate how the bot store and process the stored data.
 本bot儲存的所有資訊均經過加密。
 本bot不會分享任何儲存的資訊給任何人或實體或到任何地方。
 本bot伺服器的物理位置位於日本大阪。 當地法律可能適用。
-本bot為自由開放原始碼軟體，請參閱 https://github.com/star-39/moe-sticker-bot/blob/master/core/database.go
+本bot為自由開放原始碼軟體，請參閱 https://github.com/akira02/chiaki-sticker-bot/blob/master/core/database.go
 來了解bot如何儲存和處理儲存的資訊。
 `, tele.ModeHTML, tele.NoPreview)
 }
@@ -529,7 +530,7 @@ func sendFatalError(err error, c tele.Context) {
 
 	c.Send("<b>Fatal error encounterd. Please try again. /start\n"+
 		"發生嚴重錯誤. 請您從頭再試一次. /start </b>\n\n"+
-		"You can report this error to https://github.com/star-39/moe-sticker-bot/issues\n\n"+
+		"You can report this error to https://github.com/akira02/chiaki-sticker-bot/issues\n\n"+
 		"<code>"+errMsg+"</code>", tele.ModeHTML, tele.NoPreview)
 }
 

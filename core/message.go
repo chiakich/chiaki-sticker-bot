@@ -281,7 +281,7 @@ You can download this sticker set. Press Yes to continue.
 func sendAskWantImportOrDownload(c tele.Context, avalAsEmoji bool) error {
 	msg := ""
 	selector := &tele.ReplyMarkup{}
-	btnImportSticker := selector.Data("Import as sticker set/作為普通貼圖包匯入", CB_OK_IMPORT)
+	btnImportSticker := selector.Data("Import as sticker set/作為 Telegram 普通貼圖包匯入", CB_OK_IMPORT)
 	btnImportEmoji := selector.Data("Import as CustomEmoji/作為表情貼匯入", CB_OK_IMPORT_EMOJI)
 	btnDownload := selector.Data("Download/下載", CB_OK_DN)
 	if avalAsEmoji {

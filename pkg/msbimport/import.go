@@ -57,10 +57,15 @@ func PrepareImportStickers(ctx context.Context, ld *LineData, workDir string, co
 // which means WEBM for animated and WEBP for static
 // with 512x512 dimension.
 func convertSToTGFormat(ctx context.Context, ld *LineData) {
-	for _, s := range ld.Files {
+	for i, s := range ld.Files {
 		select {
 		case <-ctx.Done():
 			log.Warn("convertSToTGFormat received ctxDone!")
+			// Mark remaining files (not yet submitted) with cancellation error.
+			for j := i; j < len(ld.Files); j++ {
+				ld.Files[j].CError = ctx.Err()
+				ld.Files[j].Wg.Done()
+			}
 			return
 		default:
 		}

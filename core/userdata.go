@@ -48,7 +48,7 @@ func initUserData(c tele.Context, command string, state string) *UserData {
 	users.mu.Lock()
 	ctx, cancel := context.WithCancel(context.Background())
 	sID := secHex(6)
-	users.data[uid] = &UserData{
+	ud := &UserData{
 		state:     state,
 		sessionID: sID,
 		// userDir:       filepath.Join(dataDir, strconv.FormatInt(uid, 10)),
@@ -60,11 +60,22 @@ func initUserData(c tele.Context, command string, state string) *UserData {
 		ctx:    ctx,
 		cancel: cancel,
 	}
+	users.data[uid] = ud
 	users.mu.Unlock()
 	// Do not anitize user work directory.
-	// os.RemoveAll(users.data[uid].userDir)
-	os.MkdirAll(users.data[uid].workDir, 0755)
-	return users.data[uid]
+	// os.RemoveAll(ud.userDir)
+	os.MkdirAll(ud.workDir, 0755)
+	return ud
+}
+
+// udFromCtx safely retrieves a user's data pointer from the map.
+// The lock is released before returning; callers must not call this
+// if they need the map entry to remain stable across a delete.
+func udFromCtx(c tele.Context) *UserData {
+	users.mu.Lock()
+	ud := users.data[c.Sender().ID]
+	users.mu.Unlock()
+	return ud
 }
 
 func getState(c tele.Context) (string, string) {

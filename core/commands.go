@@ -84,7 +84,9 @@ func cmdGroupSearch(c tele.Context) error {
 
 func cmdQuit(c tele.Context) error {
 	log.Debug("Received user quit request.")
+	users.mu.Lock()
 	ud, exist := users.data[c.Sender().ID]
+	users.mu.Unlock()
 	if !exist {
 		return c.Send("Please use /start", &tele.ReplyMarkup{RemoveKeyboard: true})
 	}

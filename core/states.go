@@ -290,7 +290,7 @@ func waitCbEditChoice(c tele.Context) error {
 }
 
 func waitSDel(c tele.Context) error {
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	if c.Message().Sticker == nil {
 		return c.Send("send sticker! try again or /quit")
 	}
@@ -325,7 +325,7 @@ func waitCbDelset(c tele.Context) error {
 		setState(c, "waitCbEditChoice")
 		return sendAskEditChoice(c)
 	}
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	setState(c, "process")
 	c.Send("please wait...")
 
@@ -346,7 +346,7 @@ func waitSType(c tele.Context) error {
 		return c.Send("Please press a button. /quit")
 	}
 
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	if strings.Contains(c.Callback().Data, CB_CUSTOM_EMOJI) {
 		ud.stickerData.stickerSetType = tele.StickerCustomEmoji
 		ud.stickerData.isCustomEmoji = true
@@ -382,7 +382,7 @@ func waitSFile(c tele.Context) error {
 		return sendPromptStopAdding(c)
 	}
 NEXT:
-	if len(users.data[c.Sender().ID].stickerData.stickers) == 0 {
+	if len(udFromCtx(c).stickerData.stickers) == 0 {
 		return c.Send("No image received. try again or /quit")
 	}
 
@@ -393,7 +393,7 @@ NEXT:
 }
 
 func waitSTitle(c tele.Context) error {
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	command := ud.command
 
 	// User sent text instead of clicking button.
@@ -446,7 +446,7 @@ func waitSID(c tele.Context) error {
 	var id string
 	if c.Callback() != nil {
 		if c.Callback().Data == "auto" {
-			users.data[c.Sender().ID].stickerData.id = "sticker_" + secHex(4) + "_by_" + botName
+			udFromCtx(c).stickerData.id = "sticker_" + secHex(4) + "_by_" + botName
 			goto NEXT
 		}
 	}
@@ -459,7 +459,7 @@ func waitSID(c tele.Context) error {
 	if _, err := c.Bot().StickerSet(id); err == nil {
 		return sendIDOccupiedWarn(c)
 	}
-	users.data[c.Sender().ID].stickerData.id = id
+	udFromCtx(c).stickerData.id = id
 
 NEXT:
 	setState(c, "waitSFile")
@@ -467,11 +467,11 @@ NEXT:
 }
 
 func waitEmojiChoice(c tele.Context) error {
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	if c.Callback() != nil {
 		switch c.Callback().Data {
 		case "random":
-			users.data[c.Sender().ID].stickerData.emojis = []string{"⭐"}
+			ud.stickerData.emojis = []string{"⭐"}
 		case "manual":
 			sendProcessStarted(ud, c, "preparing...")
 			setState(c, ST_PROCESSING)
@@ -489,7 +489,7 @@ func waitEmojiChoice(c tele.Context) error {
 		if emojis == "" {
 			return c.Reply("Send emoji or press button a button.\n請傳送emoji或點選按鈕。 /quit")
 		}
-		users.data[c.Sender().ID].stickerData.emojis = []string{emojis}
+		ud.stickerData.emojis = []string{emojis}
 	}
 
 	setState(c, ST_PROCESSING)
@@ -513,10 +513,10 @@ func waitSEmojiAssign(c tele.Context) error {
 		keywordList = strings.Split(keywords, " ")
 	}
 
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	setState(c, ST_PROCESSING)
 
-	err := submitStickerManual(!(users.data[c.Sender().ID].command == "manage"), ud.stickerData.pos, emojiList, keywordList, c)
+	err := submitStickerManual(!(ud.command == "manage"), ud.stickerData.pos, emojiList, keywordList, c)
 	if err != nil {
 		return err
 	}

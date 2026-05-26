@@ -178,12 +178,13 @@ func GetUd(uidS string) (*UserData, error) {
 	if err != nil {
 		return nil, err
 	}
+	users.mu.Lock()
 	ud, ok := users.data[uid]
+	users.mu.Unlock()
 	if ok {
 		return ud, nil
-	} else {
-		return nil, errors.New("no such user in state")
 	}
+	return nil, errors.New("no such user in state")
 }
 
 func sliceMove[T any](oldIndex int, newIndex int, slice []T) []T {

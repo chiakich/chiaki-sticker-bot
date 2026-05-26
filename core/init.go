@@ -106,7 +106,9 @@ func terminateSession(c tele.Context) {
 }
 
 func endManageSession(c tele.Context) {
+	users.mu.Lock()
 	ud, exist := users.data[c.Sender().ID]
+	users.mu.Unlock()
 	if !exist {
 		return
 	}

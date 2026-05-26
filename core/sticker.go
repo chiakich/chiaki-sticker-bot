@@ -20,7 +20,7 @@ import (
 // Automated means all emojis are same.
 func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	uid := c.Sender().ID
-	ud := users.data[uid]
+	ud := udFromCtx(c)
 	pText, teleMsg, _ := sendProcessStarted(ud, c, "Waiting...")
 	ud.wg.Wait()
 
@@ -135,7 +135,7 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 
 // Only fatal error should be returned.
 func submitStickerManual(createSet bool, pos int, emojis []string, keywords []string, c tele.Context) error {
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	var err error
 	name := ud.stickerData.id
 	title := ud.stickerData.title
@@ -412,7 +412,7 @@ func appendMedia(c tele.Context) error {
 	var workDir string
 	var savePath string
 
-	ud := users.data[c.Sender().ID]
+	ud := udFromCtx(c)
 	ud.wg.Add(1)
 	defer ud.wg.Done()
 
@@ -436,7 +436,7 @@ func appendMedia(c tele.Context) error {
 		goto CONTINUE
 	}
 
-	workDir = users.data[c.Sender().ID].workDir
+	workDir = ud.workDir
 	savePath = filepath.Join(workDir, secHex(4))
 
 	if c.Message().Media().MediaType() == "document" {

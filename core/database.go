@@ -195,10 +195,15 @@ func queryLineS(id string) []LineStickerQ {
 	var tgTitle string
 	var tgID string
 	var aE bool
+	var qErr error
 	if id == "QUERY_ALL" {
-		qs, _ = db.Query("SELECT tg_title, tg_id, auto_emoji FROM line")
+		qs, qErr = db.Query("SELECT tg_title, tg_id, auto_emoji FROM line")
 	} else {
-		qs, _ = db.Query("SELECT tg_title, tg_id, auto_emoji FROM line WHERE line_id=?", id)
+		qs, qErr = db.Query("SELECT tg_title, tg_id, auto_emoji FROM line WHERE line_id=?", id)
+	}
+	if qErr != nil {
+		log.Errorln("queryLineS: db.Query error:", qErr)
+		return nil
 	}
 	defer qs.Close()
 	for qs.Next() {
@@ -232,10 +237,15 @@ func queryUserS(uid int64) []UserStickerQ {
 	var tgID string
 	var timestamp int64
 
+	var qErr error
 	if uid == -1 {
-		q, _ = db.Query("SELECT tg_title, tg_id, timestamp FROM stickers")
+		q, qErr = db.Query("SELECT tg_title, tg_id, timestamp FROM stickers")
 	} else {
-		q, _ = db.Query("SELECT tg_title, tg_id, timestamp FROM stickers WHERE user_id=?", uid)
+		q, qErr = db.Query("SELECT tg_title, tg_id, timestamp FROM stickers WHERE user_id=?", uid)
+	}
+	if qErr != nil {
+		log.Errorln("queryUserS: db.Query error:", qErr)
+		return nil
 	}
 	defer q.Close()
 	for q.Next() {
@@ -266,7 +276,11 @@ func matchUserS(uid int64, id string) bool {
 	// if uid == msbconf.AdminUid {
 	// 	return true
 	// }
-	qs, _ := db.Query("SELECT * FROM stickers WHERE user_id=? AND tg_id=?", uid, id)
+	qs, err := db.Query("SELECT * FROM stickers WHERE user_id=? AND tg_id=?", uid, id)
+	if err != nil {
+		log.Errorln("matchUserS: db.Query error:", err)
+		return false
+	}
 	defer qs.Close()
 	return qs.Next()
 }

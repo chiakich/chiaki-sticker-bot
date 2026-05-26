@@ -1,4 +1,16 @@
 #!/bin/sh
+
+# Create swap to handle memory spikes during video sticker conversion.
+# fly.io Firecracker VMs have full Linux access so swapon works.
+if [ ! -f /swapfile ]; then
+    echo "Setting up 256MB swap..."
+    fallocate -l 256M /swapfile && \
+    chmod 600 /swapfile && \
+    mkswap /swapfile && \
+    swapon /swapfile && \
+    echo "Swap enabled." || echo "Swap setup failed, continuing without swap."
+fi
+
 exec moe-sticker-bot \
     --data_dir=/data \
     --log_level=info \

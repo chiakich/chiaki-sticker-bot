@@ -212,7 +212,9 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 	} else {
 		baseargs = append(baseargs, "-vf", "scale=512:512:force_original_aspect_ratio=decrease")
 	}
-	baseargs = append(baseargs, "-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9", "-cpu-used", "5")
+	// -lag-in-frames 0: disable VP9 look-ahead buffer (saves ~30-50MB RSS)
+	// -tile-columns 0 -tile-rows 0: disable VP9 tiling (saves additional memory)
+	baseargs = append(baseargs, "-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9", "-cpu-used", "5", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0")
 
 	for rc := 0; rc < 4; rc++ {
 		rcargs := []string{}

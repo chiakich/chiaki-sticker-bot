@@ -1,10 +1,14 @@
 package msbimport
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -163,6 +167,110 @@ func IMToPng(f string) (string, error) {
 		return "", err
 	}
 	return pathOut, err
+}
+
+// WebpToWebmViaPipe converts an animated WebP to webm by streaming PNG frames
+// from ImageMagick directly into ffmpeg via pipe, avoiding large intermediate
+// files and reducing peak memory usage.
+func WebpToWebmViaPipe(f string, isCustomEmoji bool) (string, error) {
+	pathOut := f + ".webm"
+
+	fps := webpFPS(f)
+	log.Infof("WebpToWebmViaPipe: %s fps=%.2f", f, fps)
+
+	scale := "512:512:force_original_aspect_ratio=decrease"
+	if isCustomEmoji {
+		scale = "100:100:force_original_aspect_ratio=decrease"
+	}
+
+	ffArgs := append([]string{}, ffmpegQ...)
+	ffArgs = append(ffArgs,
+		"-f", "image2pipe", "-vcodec", "png",
+		"-framerate", fmt.Sprintf("%g", fps),
+		"-i", "pipe:0",
+		"-vf", "scale="+scale,
+		"-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9",
+		"-cpu-used", "8", "-lag-in-frames", "0",
+		"-minrate", "50k", "-b:v", "350k", "-maxrate", "450k",
+		"-to", "00:00:03", "-an", "-y", pathOut,
+	)
+
+	imArgs := append([]string{}, CONVERT_ARGS...)
+	imArgs = append(imArgs, "WEBP:"+f, "-coalesce", "png:-")
+
+	imCmd := exec.Command(CONVERT_BIN, imArgs...)
+	ffCmd := exec.Command(FFMPEG_BIN, ffArgs...)
+
+	pr, pw := io.Pipe()
+	imCmd.Stdout = pw
+	var ffOut bytes.Buffer
+	ffCmd.Stdin = pr
+	ffCmd.Stderr = &ffOut
+
+	if err := imCmd.Start(); err != nil {
+		return pathOut, fmt.Errorf("WebpToWebmViaPipe: imCmd start: %w", err)
+	}
+	if err := ffCmd.Start(); err != nil {
+		imCmd.Process.Kill()
+		return pathOut, fmt.Errorf("WebpToWebmViaPipe: ffCmd start: %w", err)
+	}
+
+	imErr := imCmd.Wait()
+	pw.Close()
+	ffErr := ffCmd.Wait()
+
+	if imErr != nil || ffErr != nil {
+		log.Warnln("WebpToWebmViaPipe ERROR ffmpeg:", ffOut.String())
+		if ffErr != nil {
+			return pathOut, ffErr
+		}
+		return pathOut, imErr
+	}
+	if st, err := os.Stat(pathOut); err != nil || st.Size() == 0 {
+		return pathOut, errors.New("WebpToWebmViaPipe: output empty")
+	}
+	return pathOut, nil
+}
+
+// webpFPS returns the playback FPS of an animated WebP by reading the first
+// frame's delay (in centiseconds) via identify. Falls back to 25 if unknown.
+func webpFPS(f string) float64 {
+	out, err := exec.Command(IDENTIFY_BIN,
+		append(IDENTIFY_ARGS, "-format", "%T\n", "WEBP:"+f)...,
+	).Output()
+	if err != nil || len(out) == 0 {
+		return 25
+	}
+	first := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
+	delay, err := strconv.ParseFloat(strings.TrimSpace(first), 64)
+	if err != nil || delay <= 0 {
+		return 25
+	}
+	return 100.0 / delay
+}
+
+// IMToGif converts an animated WebP (no extension) to GIF using ImageMagick.
+// GIF is palette-based (8-bit) so decoded frame memory is ~4x smaller than
+// APNG (RGBA), making it more suitable for memory-constrained environments.
+func IMToGif(f string) (string, error) {
+	pathOut := f + ".gif"
+	bin := CONVERT_BIN
+	args := CONVERT_ARGS
+	// -coalesce ensures proper frame disposal before palette reduction.
+	args = append(args, "WEBP:"+f, "-coalesce", pathOut)
+
+	out, err := exec.Command(bin, args...).CombinedOutput()
+	if err != nil {
+		log.Warnln("IMToGif ERROR:", string(out))
+		return "", err
+	}
+	if st, stErr := os.Stat(pathOut); stErr != nil || st.Size() == 0 {
+		log.Warnln("IMToGif: output file missing or empty:", string(out))
+		return "", errors.New("IMToGif: output file missing or empty")
+	} else {
+		log.Infof("IMToGif: OK, %d bytes -> %s", st.Size(), pathOut)
+	}
+	return pathOut, nil
 }
 
 func IMToApng(f string) (string, error) {

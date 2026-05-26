@@ -122,6 +122,8 @@ type webappStickerObject struct {
 	FilePath string `json:"file_path"`
 	//Sticker file ID
 	FileID string `json:"file_id"`
+	//Is video sticker (.webm)
+	IsVideo bool `json:"is_video"`
 	//Sticker unique ID
 	UniqueID string `json:"unique_id"`
 	//URL of sticker image.
@@ -181,6 +183,7 @@ func apiSS(c *gin.Context) {
 			Surl:     surl,
 			UniqueID: s.UniqueID,
 			FileID:   s.FileID,
+			IsVideo:  s.Video,
 		})
 		if i == 0 {
 			wss.SSThumb = surl

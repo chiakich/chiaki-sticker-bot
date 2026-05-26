@@ -6,13 +6,16 @@ import loading_gif from './loading.gif'
 
 
 
-export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChange, ...props }, ref) => {
+export const Sticker = forwardRef(({ id, faded, style, emoji, surl, is_video, onEmojiChange, ...props }, ref) => {
 
     return (
       <div className='Sticker-Div' ref={ref} style={style} {...props}>
-          <Img src={surl} placeholder={loading_gif} alt="Loading..."
-            retry={{ count: 10, delay: 2, acc: false }}
-          ></Img>
+          {is_video
+            ? <video src={surl} autoPlay loop muted playsInline style={{width: '100%'}} />
+            : <Img src={surl} placeholder={loading_gif} alt="Loading..."
+                retry={{ count: 10, delay: 2, acc: false }}
+              />
+          }
         <br />
         <div>
           <label>{id}</label>

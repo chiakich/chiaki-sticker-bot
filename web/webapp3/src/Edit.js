@@ -117,7 +117,8 @@ function Edit() {
                   id={item.id}
                   emoji={item.emoji}
                   onEmojiChange={setEmoji}
-                  surl={item.surl} />
+                  surl={item.surl}
+                  is_video={item.is_video} />
               ))
             }
           </StickerGrid>

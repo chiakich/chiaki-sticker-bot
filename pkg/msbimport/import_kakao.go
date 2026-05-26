@@ -48,15 +48,17 @@ func parseKakaoLink(link string, ld *LineData) (string, error) {
 	log.Debugln("Parsed kakao link:", link)
 	log.Debugln(kakaoJson.Result)
 
-	// if url.Host == "emoticon.kakao.com" {
-	// 	ld.DLink = fmt.Sprintf("http://item.kakaocdn.net/dw/%s.file_pack.zip", eid)
-	// } else {
-	ld.DLinks = kakaoJson.Result.ThumbnailUrls
-	// warn = WARN_KAKAO_PREFER_SHARE_LINK
-	// }
+	for _, item := range kakaoJson.Contents.Items {
+		if item.AnimatedUrl != "" {
+			ld.DLinks = append(ld.DLinks, item.AnimatedUrl)
+			ld.IsAnimated = true
+		} else {
+			ld.DLinks = append(ld.DLinks, item.ThumbnailUrl)
+		}
+	}
 
-	ld.Title = kakaoJson.Result.Title
-	ld.Id = kakaoJson.Result.TitleUrl
+	ld.Title = kakaoJson.Hero.Title
+	ld.Id = kakaoID
 	ld.Link = link
 	ld.Amount = len(ld.DLinks)
 	ld.Category = KAKAO_EMOTICON
@@ -64,7 +66,7 @@ func parseKakaoLink(link string, ld *LineData) (string, error) {
 }
 
 func fetchKakaoMetadata(kakaoJson *KakaoJson, kakaoID string) error {
-	apiUrl := "https://e.kakao.com/api/v1/items/t/" + kakaoID
+	apiUrl := "https://e.kakao.com/api/items/" + kakaoID
 	page, err := httpGet(apiUrl)
 	if err != nil {
 		return err
@@ -109,12 +111,22 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			default:
 			}
 
-			f := filepath.Join(workDir, path.Base(l)+".png")
+			// Animated URLs end with "-g" (animated GIF from Kakao CDN).
+			ext := ".png"
+			if strings.HasSuffix(l, "-g") {
+				ext = ".gif"
+			}
+			f := filepath.Join(workDir, path.Base(l)+ext)
 			err := httpDownload(l, f)
 			if err != nil {
 				ld.Files[i].CError = err
 			}
-			cf, _ := IMToWebpTGStatic(f, false)
+			var cf string
+			if strings.HasSuffix(l, "-g") {
+				cf, _ = ConverMediaToTGStickerSmart(f, false)
+			} else {
+				cf, _ = IMToWebpTGStatic(f, false)
+			}
 			ld.Files[i].OriginalFile = f
 			ld.Files[i].ConvertedFile = cf
 			ld.Files[i].Wg.Done()

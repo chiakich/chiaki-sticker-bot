@@ -86,21 +86,24 @@ type LineJson struct {
 	Url  string
 }
 
-type KakaoJsonResult struct {
-	//Korean title
-	Title string
-	//kakao ID
-	TitleUrl string
-	//PNG urls
-	ThumbnailUrls []string
-	//??
-	TitleImageUrl string
-	//Cover image
-	TitleDetailUrl string
+// New Kakao API (https://e.kakao.com/api/items/{slug})
+type KakaoItem struct {
+	ThumbnailUrl string `json:"thumbnailUrl"`
+	AnimatedUrl  string `json:"animatedUrl"`
+	SoundUrl     string `json:"soundUrl"`
+}
+
+type KakaoContents struct {
+	Items []KakaoItem `json:"items"`
+}
+
+type KakaoHero struct {
+	Title string `json:"title"`
 }
 
 type KakaoJson struct {
-	Result KakaoJsonResult
+	Hero     KakaoHero     `json:"hero"`
+	Contents KakaoContents `json:"contents"`
 }
 
 type LineProductInfo struct {

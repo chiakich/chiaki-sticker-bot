@@ -132,7 +132,14 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			}
 			var cf string
 			if isAnimated {
-				cf, err = ConverMediaToTGStickerSmart(f, false)
+				// Kakao animated WebP cannot be decoded directly by ffmpeg.
+				// Pre-convert to APNG via ImageMagick before encoding to webm.
+				apng, apngErr := IMToApng(f)
+				if apngErr != nil {
+					err = apngErr
+				} else {
+					cf, err = FFToWebmTGVideo(apng, false)
+				}
 			} else {
 				cf, err = IMToWebpTGStatic(f, false)
 			}

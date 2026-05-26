@@ -14,7 +14,7 @@ var wpDownloadStickerSet *ants.PoolWithFunc
 func initWorkersPool() {
 	// wpConvertWebm, _ = ants.NewPoolWithFunc(4, wConvertWebm)
 	wpDownloadStickerSet, _ = ants.NewPoolWithFunc(
-		8, wDownloadStickerObject)
+		2, wDownloadStickerObject)
 }
 
 // *StickerDownloadObject

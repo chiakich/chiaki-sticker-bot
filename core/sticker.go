@@ -120,6 +120,9 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	if createSet {
 		if ud.command == "import" {
 			insertLineS(ud.lineData.Id, ud.lineData.Link, ud.stickerData.id, ud.stickerData.title, true)
+			go insertEvent(c.Sender().ID, c.Sender().Username,
+				strings.TrimSpace(c.Sender().FirstName+" "+c.Sender().LastName),
+				"import_"+ud.lineData.Store, ud.lineData.Id, "success")
 			// Only verify for import.
 			// User generated sticker set might intentionally contain same stickers.
 			if *flCount > 1 {

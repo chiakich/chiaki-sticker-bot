@@ -28,6 +28,8 @@ A self-hosted Telegram sticker bot, forked from [@moe_sticker_bot](https://githu
 
 This fork is designed to run on [fly.io](https://fly.io) with 256MB RAM.
 
+Uses **webhook mode** with **blue-green deploys** so in-flight sticker imports are not interrupted during updates.
+
 ### Prerequisites
 
 * [flyctl](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated
@@ -43,13 +45,17 @@ git clone https://github.com/akira02/chiaki-sticker-bot && cd chiaki-sticker-bot
 fly launch --no-deploy
 
 # 3. Set secrets
-fly secrets set BOT_TOKEN="your-bot-token"
+fly secrets set \
+  BOT_TOKEN="your-bot-token" \
+  WEBHOOK_SECRET="$(openssl rand -hex 32)"
 
 # 4. Deploy
 fly deploy
 ```
 
-### Optional: Enable database (for /search functionality)
+The bot listens on `:8080` for both the Telegram webhook (`POST /webhook`) and the fly.io health check (`GET /health`).
+
+### Optional: Enable database (for /search and usage tracking)
 
 Use a MySQL-compatible service such as [TiDB Cloud Serverless](https://tidbcloud.com) (free tier available):
 
@@ -64,7 +70,7 @@ fly secrets set \
 
 ### Optional: Enable WebApp (/manage with visual editor)
 
-Set `--webapp_url`, `--webapp_listen_addr`, and `--webapp_data_dir` in `start-bot.sh`, then deploy.
+Set `--webapp_url` and `--webapp_data_dir` in `start-bot.sh`, then deploy. The WebApp API is served on the same `:8080` port as the webhook.
 
 ---
 

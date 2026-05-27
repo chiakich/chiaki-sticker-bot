@@ -155,34 +155,36 @@ v2.0.0 (20230105)
 func sendPrivacy(c tele.Context) error {
 	return c.Send(`
 <b>Privacy Notice:</b>
-None of your usage or behaviour will be stored or analyzed.
-None of your user identifier or information will be collected or stored if you did not use /import or /create command and succeded.
+This bot collects limited data to operate and improve the service.
 
-If you used /create or /import feature and upon success,
-your user identifier will be associated to the sticker set you create and stored to database on the bot server,
-which will only be used to tell which sticker set is owned by you only when you use /manage command.
-No one else could see or use the stored user identifier.
+<b>What we collect:</b>
+• <b>Usage events</b> — when you use /import or /search, your Telegram user ID, display name, and the action type are logged with a timestamp. This is used to understand overall usage patterns.
+• <b>Sticker ownership</b> — if you use /import or /create successfully, your user ID is associated with the sticker set so that /manage can identify your sets.
 
-All the data being stored is encrypted.
-This bot will never share any of the stored data to anyone or to anywhere else.
-The bot server is physically located at Osaka,Japan. Local laws might apply.
-This bot is free and open source software, you can see https://github.com/akira02/chiaki-sticker-bot/blob/master/core/database.go
-to investigate how the bot store and process the stored data.
+<b>What we do NOT collect:</b>
+• Message content
+• Sticker files you send
+• Any data from users who only browse or interact with sticker sets they did not create
+
+All stored data is used solely to operate this bot and will never be shared with any third party.
+The bot server is located in Singapore. Local laws may apply.
+This bot is free and open source: https://github.com/akira02/chiaki-sticker-bot
 
 <b>隱私聲明:</b>
-本bot不會存儲或分析您的使用情況或行為。
-本bot不會採集或儲存任何用戶資訊，除非您使用了 /import 或 /create 指令且成功完成。
+本 bot 會收集有限的資料以維持服務運作。
 
-如果您使用了 /import 或 /create 指令並且成功完成，
-您的用戶識別子(user_id)會與您創建的貼圖包關聯並存檔入bot伺服器的資料庫中。
-此識別子只會用來讓您本人通過 /manage 指令查詢您所擁有的貼圖包，不作其他任何用途。
-任何其他用戶無法看見或使用此識別子。
+<b>收集的資料：</b>
+• <b>使用紀錄</b> — 當您使用 /import 或 /search 時，您的 Telegram 用戶 ID、顯示名稱及動作類型會連同時間戳記一併儲存，用於了解整體使用情況。
+• <b>貼圖包歸屬</b> — 當您成功使用 /import 或 /create 時，您的用戶 ID 會與所建立的貼圖包關聯，以供 /manage 識別您的貼圖包。
 
-本bot儲存的所有資訊均經過加密。
-本bot不會分享任何儲存的資訊給任何人或實體或到任何地方。
-本bot伺服器的物理位置位於新加坡，將適用當地法律。
-本bot為自由開放原始碼軟體，請參閱 https://github.com/akira02/chiaki-sticker-bot/blob/master/core/database.go
-來了解bot如何儲存和處理儲存的資訊。
+<b>不收集的資料：</b>
+• 訊息內容
+• 您傳送的貼圖檔案
+• 未使用上述指令的用戶的任何資料
+
+所有儲存的資料僅用於維持本 bot 的運作，不會分享給任何第三方。
+本 bot 伺服器位於新加坡，將適用當地法律。
+本 bot 為自由開放原始碼軟體：https://github.com/akira02/chiaki-sticker-bot
 `, tele.ModeHTML, tele.NoPreview)
 }
 

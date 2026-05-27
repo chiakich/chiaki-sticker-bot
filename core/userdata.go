@@ -18,6 +18,7 @@ func cleanUserDataAndDir(uid int64) bool {
 	if exist {
 		workDir := ud.workDir
 		delete(users.data, uid)
+		activeSessionsWg.Done()
 		users.mu.Unlock()
 		os.RemoveAll(workDir)
 		log.WithField("uid", uid).Debugln("Userdata purged from map and disk.")
@@ -34,6 +35,7 @@ func cleanUserData(uid int64) bool {
 	_, exist := users.data[uid]
 	if exist {
 		delete(users.data, uid)
+		activeSessionsWg.Done()
 		users.mu.Unlock()
 		log.WithField("uid", uid).Debugln("Userdata purged from map.")
 		return true
@@ -61,6 +63,7 @@ func initUserData(c tele.Context, command string, state string) *UserData {
 		cancel: cancel,
 	}
 	users.data[uid] = ud
+	activeSessionsWg.Add(1)
 	users.mu.Unlock()
 	// Do not anitize user work directory.
 	// os.RemoveAll(ud.userDir)

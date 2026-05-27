@@ -9,16 +9,13 @@ type ConfigTemplate struct {
 	// UseDB            bool
 	BotToken string
 	// WebApp    bool
-	WebappUrl           string
-	WebappApiListenAddr string
-	WebappDataDir       string
-	DbAddr              string
-	DbUser              string
-	DbPass              string
+	WebappUrl         string
+	WebappDataDir     string
+	DbAddr            string
+	DbUser            string
+	DbPass            string
+	WebhookPublicUrl  string // e.g. https://chiaki-sticker-bot.fly.dev/webhook
+	WebhookSecretToken string
 	// BotApiAddr       string
 	// BotApiDir        string
-	// WebhookPublicAddr string
-	// WebhookListenAddr string
-	// WebhookCert        string
-	// WebhookSecretToken string
 }

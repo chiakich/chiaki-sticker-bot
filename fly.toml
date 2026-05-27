@@ -8,6 +8,11 @@ primary_region = 'sin'
 
 [build]
 
+[deploy]
+  strategy = "bluegreen"
+
+kill_timeout = "300s"
+
 [http_service]
   internal_port = 8080
   force_https = true
@@ -15,6 +20,13 @@ primary_region = 'sin'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
 
 [[vm]]
   memory = '256mb'

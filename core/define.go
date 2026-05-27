@@ -15,6 +15,9 @@ var BOT_VERSION = "2.5.0-RC1"
 var b *tele.Bot
 var cronScheduler *gocron.Scheduler
 
+var activeSessionsWg sync.WaitGroup
+var webhookPoller *tele.Webhook
+
 var dataDir string
 var botName string
 

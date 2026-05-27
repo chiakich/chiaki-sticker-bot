@@ -1,12 +1,15 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"syscall"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -23,13 +26,6 @@ func Init(conf ConfigTemplate) {
 	initWorkspace(b)
 	initWorkersPool()
 	go initGoCron()
-	if msbconf.WebappUrl != "" {
-		InitWebAppServer()
-	} else {
-		log.Info("WebApp not enabled.")
-	}
-
-	log.WithFields(log.Fields{"botName": botName, "dataDir": dataDir}).Info("Bot OK.")
 
 	// complies to telebot v3.1
 	b.Use(Recover())
@@ -63,7 +59,37 @@ func Init(conf ConfigTemplate) {
 	b.Handle(tele.OnPhoto, handleMessage)
 	b.Handle(tele.OnCallback, handleMessage, autoRespond, sanitizeCallback)
 
-	b.Start()
+	// Always start HTTP server (health check + webhook if configured + WebApp if configured)
+	srv := initHTTPServer()
+
+	// Set up signal handler
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+
+	// Start bot in goroutine (non-blocking)
+	go b.Start()
+	log.WithFields(log.Fields{"botName": botName, "dataDir": dataDir}).Info("Bot OK.")
+
+	// Block until signal
+	<-quit
+	log.Info("SIGTERM received, draining active sessions...")
+	b.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		activeSessionsWg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		log.Info("All sessions completed, shutting down cleanly.")
+	case <-time.After(5 * time.Minute):
+		log.Warn("Shutdown timeout (5m), forcing exit.")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	srv.Shutdown(ctx)
 }
 
 // Recover returns a middleware that recovers a panic happened in
@@ -139,11 +165,22 @@ func onError(err error, c tele.Context) {
 
 func initBot(conf ConfigTemplate) *tele.Bot {
 	var poller tele.Poller
-	url := tele.DefaultApiURL
+	if conf.WebhookPublicUrl != "" {
+		webhookPoller = &tele.Webhook{
+			Endpoint: &tele.WebhookEndpoint{
+				PublicURL: conf.WebhookPublicUrl,
+			},
+			SecretToken: conf.WebhookSecretToken,
+		}
+		poller = webhookPoller
+		log.WithField("url", conf.WebhookPublicUrl).Info("Webhook mode enabled.")
+	} else {
+		poller = &tele.LongPoller{Timeout: 10 * time.Second}
+		log.Info("Long polling mode enabled.")
+	}
 
 	pref := tele.Settings{
-		URL:    url,
-		Token:  msbconf.BotToken,
+		Token:  conf.BotToken,
 		Poller: poller,
 		// Use a longer timeout for file uploads (sticker sets can be large).
 		Client:      &http.Client{Timeout: 3 * time.Minute},

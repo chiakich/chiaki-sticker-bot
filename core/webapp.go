@@ -24,7 +24,7 @@ import (
 	tele "gopkg.in/telebot.v3"
 )
 
-func InitWebAppServer() {
+func initHTTPServer() *http.Server {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -41,31 +41,53 @@ func InitWebAppServer() {
 		},
 	}))
 
-	u, err := url.Parse(msbconf.WebappUrl)
-	if err != nil {
-		log.Error("Failed parsing WebApp URL! Consider disable --webapp ?")
-		log.Fatalln(err.Error())
-	}
-	p := u.Path
+	// Health check for fly.io blue-green
+	r.GET("/health", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
 
-	webappApi := r.Group(path.Join(p, "api"))
-	{
-		//Group: /webapp/api
-		webappApi.POST("/initData", apiInitData)
-		webappApi.GET("/ss", apiSS)
-		webappApi.POST("/edit/result", apiEditResult)
-		webappApi.POST("/edit/move", apiEditMove)
-		webappApi.GET("/export", apiExport)
-		webappApi.GET("/proxy", apiProxy)
+	// Telegram webhook endpoint
+	if webhookPoller != nil {
+		r.POST("/webhook", func(c *gin.Context) {
+			webhookPoller.ServeHTTP(c.Writer, c.Request)
+		})
+		log.Info("Webhook endpoint registered at /webhook")
 	}
 
-	go func() {
-		err := r.Run(msbconf.WebappApiListenAddr)
+	// WebApp routes (only if configured)
+	if msbconf.WebappUrl != "" {
+		u, err := url.Parse(msbconf.WebappUrl)
 		if err != nil {
-			log.Fatalln("WebApp: Gin Run failed! Check your addr or disable webapp.\n", err)
+			log.Error("Failed parsing WebApp URL!")
+			log.Fatalln(err.Error())
 		}
-		log.Infoln("WebApp: Listening on ", msbconf.WebappApiListenAddr)
+		p := u.Path
+
+		webappApi := r.Group(path.Join(p, "api"))
+		{
+			//Group: /webapp/api
+			webappApi.POST("/initData", apiInitData)
+			webappApi.GET("/ss", apiSS)
+			webappApi.POST("/edit/result", apiEditResult)
+			webappApi.POST("/edit/move", apiEditMove)
+			webappApi.GET("/export", apiExport)
+			webappApi.GET("/proxy", apiProxy)
+		}
+	} else {
+		log.Info("WebApp not enabled.")
+	}
+
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
+	}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalln("HTTP server error:", err)
+		}
 	}()
+	log.Info("HTTP server listening on :8080")
+	return srv
 }
 
 // apiProxy streams a sticker file directly from Telegram CDN to the browser.

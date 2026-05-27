@@ -24,8 +24,9 @@ func parseCmdLine() core.ConfigTemplate {
 	var botToken = flag.String("bot_token", "", "Telegram Bot Token")
 	var dataDir = flag.String("data_dir", "", "Overwrites the working directory where msb puts data.")
 	var webappUrl = flag.String("webapp_url", "", "Public HTTPS URL to WebApp, in unset, webapp will be disabled.")
-	var WebappApiListenAddr = flag.String("webapp_listen_addr", "", "Webapp API server listen address(IP:PORT)")
 	var webappDataDir = flag.String("webapp_data_dir", "", "Where to put webapp data to share with ReactApp ")
+	var webhookUrl = flag.String("webhook_url", "", "Public HTTPS URL for Telegram webhook (e.g. https://yourapp.fly.dev/webhook). If unset, uses long polling.")
+	var webhookSecret = flag.String("webhook_secret", "", "Optional secret token for webhook validation.")
 	var dbAddr = flag.String("db_addr", "", "mariadb(mysql) address, if unset, database will be disabled.")
 	var dbUser = flag.String("db_user", "", "mariadb(mysql) usernmae")
 	var dbPass = flag.String("db_pass", "", "mariadb(mysql) password")
@@ -60,13 +61,8 @@ func parseCmdLine() core.ConfigTemplate {
 
 	conf.WebappUrl = *webappUrl
 	conf.WebappDataDir = *webappDataDir
-	conf.WebappApiListenAddr = *WebappApiListenAddr
-
-	// conf.BotApiAddr = *botApiAddr
-	// conf.BotApiDir = *botApiDir
-	// conf.WebhookPublicAddr = *webhookPublicAddr
-	// conf.WebhookListenAddr = *webhookListenAddr
-	// conf.WebhookCert = *webhookCert
+	conf.WebhookPublicUrl = *webhookUrl
+	conf.WebhookSecretToken = *webhookSecret
 
 	conf.LogLevel = *logLevel
 

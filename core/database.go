@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
-	tele "gopkg.in/telebot.v3"
 )
 
 /*
@@ -61,7 +60,7 @@ value: -1
 
 var db *sql.DB
 
-const DB_VER = "4"
+const DB_VER = "5"
 
 func initDB(dbname string) error {
 	addr := msbconf.DbAddr
@@ -147,6 +146,11 @@ func checkUpgradeDatabase(queriedDbVer string) {
 		db.Exec("UPDATE properties SET value=? WHERE name=?", "4", "DB_VER")
 		log.Info("Upgraded DB_VER to 4: added pack_id, status, display_name to events; added users table")
 	}
+	if queriedDbVer == "1" || queriedDbVer == "2" || queriedDbVer == "3" || queriedDbVer == "4" {
+		db.Exec("ALTER TABLE events DROP COLUMN IF EXISTS display_name")
+		db.Exec("UPDATE properties SET value=? WHERE name=?", "5", "DB_VER")
+		log.Info("Upgraded DB_VER to 5: dropped display_name from events")
+	}
 }
 
 func createMariadb(dsn *mysql.Config, dbname string) error {
@@ -161,7 +165,8 @@ func createMariadb(dsn *mysql.Config, dbname string) error {
 	db.Exec("CREATE TABLE line (line_id VARCHAR(128), tg_id VARCHAR(128), tg_title VARCHAR(255), line_link VARCHAR(512), auto_emoji BOOL)")
 	db.Exec("CREATE TABLE properties (name VARCHAR(128) PRIMARY KEY, value VARCHAR(128))")
 	db.Exec("CREATE TABLE stickers (user_id BIGINT, tg_id VARCHAR(128), tg_title VARCHAR(255), timestamp BIGINT)")
-	db.Exec("CREATE TABLE events (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL, username VARCHAR(64), first_name VARCHAR(64), action VARCHAR(32) NOT NULL, pack_id VARCHAR(128), status VARCHAR(16), ts DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_user (user_id), INDEX idx_ts (ts))")
+	db.Exec("CREATE TABLE events (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL, username VARCHAR(64), action VARCHAR(32) NOT NULL, pack_id VARCHAR(128), status VARCHAR(16), ts DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_user (user_id), INDEX idx_ts (ts))")
+	db.Exec("CREATE TABLE IF NOT EXISTS users (user_id BIGINT PRIMARY KEY, username VARCHAR(64), display_name VARCHAR(128), updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)")
 	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "last_line_dedup_index", "-1")
 	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "DB_VER", DB_VER)
 	log.Infoln("Mariadb initialized with DB_VER :", DB_VER)
@@ -445,8 +450,8 @@ func insertEvent(userID int64, username string, displayName string, action strin
 		return
 	}
 	_, err := db.Exec(
-		"INSERT INTO events (user_id, username, display_name, action, pack_id, status) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, username, displayName, action, packID, status,
+		"INSERT INTO events (user_id, username, action, pack_id, status) VALUES (?, ?, ?, ?, ?)",
+		userID, username, action, packID, status,
 	)
 	if err != nil {
 		log.Debugln("insertEvent error:", err)
@@ -456,41 +461,4 @@ func insertEvent(userID int64, username string, displayName string, action strin
 		"INSERT INTO users (user_id, username, display_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE username=VALUES(username), display_name=VALUES(display_name)",
 		userID, username, displayName,
 	)
-}
-
-func backfillUsernames(b interface {
-	ChatByID(int64) (*tele.Chat, error)
-}) {
-	if db == nil {
-		return
-	}
-	rows, err := db.Query("SELECT DISTINCT user_id FROM stickers")
-	if err != nil {
-		log.Debugln("backfillUsernames: query error:", err)
-		return
-	}
-	defer rows.Close()
-	var uids []int64
-	for rows.Next() {
-		var uid int64
-		if err := rows.Scan(&uid); err == nil {
-			uids = append(uids, uid)
-		}
-	}
-	rows.Close()
-
-	for _, uid := range uids {
-		chat, err := b.ChatByID(uid)
-		if err != nil {
-			log.Debugln("backfillUsernames: ChatByID error for", uid, ":", err)
-			continue
-		}
-		displayName := strings.TrimSpace(chat.FirstName + " " + chat.LastName)
-		db.Exec(
-			"INSERT INTO users (user_id, username, display_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE username=VALUES(username), display_name=VALUES(display_name)",
-			uid, chat.Username, displayName,
-		)
-		log.Debugf("backfillUsernames: upserted user %d (%s)", uid, displayName)
-	}
-	log.Infof("backfillUsernames: done, processed %d users", len(uids))
 }

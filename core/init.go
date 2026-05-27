@@ -179,7 +179,6 @@ func initWorkspace(b *tele.Bot) {
 		if err != nil {
 			log.Fatalln("Error initializing database!!", err)
 		}
-		go backfillUsernames(b)
 	} else {
 		log.Warn("Database not enabled because --db_addr is not set.")
 	}

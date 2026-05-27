@@ -20,5 +20,6 @@ exec moe-sticker-bot \
     --db_pass=$DB_PASS \
     --admin_uid=207946916 \
     --webapp_url=https://chiaki-sticker-bot.fly.dev/webapp \
-    --webapp_listen_addr=127.0.0.1:8081 \
-    --webapp_data_dir=/data/webapp
+    --webapp_data_dir=/data/webapp \
+    --webhook_url=https://chiaki-sticker-bot.fly.dev/webhook \
+    --webhook_secret=$WEBHOOK_SECRET

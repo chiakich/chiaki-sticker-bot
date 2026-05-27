@@ -30,7 +30,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     ca-certificates \
     nginx \
-    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --break-system-packages rlottie-python emoji
@@ -46,7 +45,6 @@ COPY --from=webapp-builder /webapp/build /webapp/build
 COPY web/nginx/fly.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default
 
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY start-bot.sh /usr/local/bin/start-bot.sh
 RUN chmod +x /usr/local/bin/start-bot.sh
 
@@ -54,4 +52,4 @@ VOLUME ["/data"]
 
 EXPOSE 8080
 
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/usr/local/bin/start-bot.sh"]

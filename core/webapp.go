@@ -43,7 +43,7 @@ func initHTTPServer() *http.Server {
 
 	// Health check for fly.io blue-green
 	r.GET("/health", func(c *gin.Context) {
-		c.Status(http.StatusOK)
+		c.String(http.StatusOK, "ok")
 	})
 
 	// Telegram webhook endpoint — always register the route;

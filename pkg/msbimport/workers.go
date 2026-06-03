@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"context"
 	"strings"
 
 	"github.com/panjf2000/ants/v2"
@@ -17,13 +18,31 @@ func wConvertWebm(i interface{}) {
 	log.Debugln("Converting in pool for:", lf)
 
 	var err error
+	ctx := lf.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		lf.CError = ctx.Err()
+		return
+	default:
+	}
 	//FFMpeg doest not support animated webp.
 	//IM convert it to apng then feed to webm.
 	if strings.HasSuffix(lf.OriginalFile, ".webp") {
-		lf.OriginalFile, _ = IMToApng(lf.OriginalFile)
+		lf.OriginalFile, err = IMToApng(lf.OriginalFile)
+		if err != nil {
+			if ctx.Err() != nil {
+				lf.CError = ctx.Err()
+			} else {
+				lf.CError = err
+			}
+			return
+		}
 	}
 
-	lf.ConvertedFile, err = FFToWebmTGVideo(lf.OriginalFile, lf.ConvertToEmoji)
+	lf.ConvertedFile, err = FFToWebmTGVideoContext(ctx, lf.OriginalFile, lf.ConvertToEmoji)
 	if err != nil {
 		lf.CError = err
 	}

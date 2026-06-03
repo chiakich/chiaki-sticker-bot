@@ -489,10 +489,23 @@ func isAnimatedWebp(f string) bool {
 }
 
 func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
+	return FFToWebmTGVideoContext(context.Background(), f, isCustomEmoji)
+}
+
+func FFToWebmTGVideoContext(ctx context.Context, f string, isCustomEmoji bool) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	// Input may be gone if the session was torn down (cancel/error) while this
 	// conversion was still queued. Bail fast instead of running 4 pointless rc retries.
 	if _, err := os.Stat(f); err != nil {
 		log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		return "", err
 	}
 
@@ -510,7 +523,7 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 
 	if duration, ok := mediaDurationSeconds(f); ok && duration > telegramVideoMaxDuration {
 		log.Debugf("FFToWebmTGVideo: source duration %.3fs exceeds Telegram limit %.3fs, using safe mode.", duration, telegramVideoMaxDuration)
-		return FFToWebmSafe(f, isCustomEmoji)
+		return FFToWebmSafeContext(ctx, f, isCustomEmoji)
 	}
 
 	pathOut := f + ".webm"
@@ -530,6 +543,16 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 
 	var lastErr error
 	for rc := 0; rc < 4; rc++ {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(f); err != nil {
+			log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			return "", err
+		}
 		rcargs := []string{}
 		switch rc {
 		case 0:
@@ -543,10 +566,20 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 		}
 		args := append(baseargs, rcargs...)
 		args = append(args, []string{"-to", "00:00:03", "-an", "-y", pathOut}...)
-		ctx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
-		out, err := niceCommandContext(ctx, bin, args...).CombinedOutput()
+		runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+		out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
 		cancel()
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			if _, statErr := os.Stat(f); statErr != nil {
+				log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
+				if ctx.Err() != nil {
+					return "", ctx.Err()
+				}
+				return "", statErr
+			}
 			// Don't bail on the first failure; let the remaining rc attempts run
 			// in case the error was transient.
 			log.Warnf("ffToWebm ERROR (rc=%d), retrying:\n%s", rc, string(out))
@@ -574,10 +607,23 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 // This function will be called if Telegram's API rejected our webm.
 // It is normally due to overlength or bad FPS rate.
 func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
+	return FFToWebmSafeContext(context.Background(), f, isCustomEmoji)
+}
+
+func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
 		log.Debugln("FFToWebmSafe: animated WebP detected, converting to APNG first.")
 		f2, err := IMToApng(f)
 		if err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
 			log.Warnln("IMToApng ERROR:", err)
 			return "", err
 		}
@@ -597,8 +643,13 @@ func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
 		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-auto-alt-ref", "0", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
 		"-to", "00:00:02.800", "-r", "30", "-an", "-y", pathOut)
 
-	out, err := niceCommand(bin, args...).CombinedOutput()
+	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+	defer cancel()
+	out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		log.Warnf("FFToWebmSafe ERROR:\n%s", string(out))
 	}
 	return pathOut, err

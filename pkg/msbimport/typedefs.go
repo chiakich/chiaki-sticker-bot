@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"context"
 	"sync"
 )
 
@@ -34,6 +35,8 @@ const (
 )
 
 type LineFile struct {
+	// Context for cancelling conversion work.
+	Ctx context.Context
 	//Waitgroup for conversion.
 	Wg sync.WaitGroup
 	//Convert to 100x100 emoji.

@@ -70,6 +70,7 @@ func convertSToTGFormat(ctx context.Context, ld *LineData) {
 		default:
 		}
 		var err error
+		s.Ctx = ctx
 		// If lineS is animated, commit to worker pool
 		// since encoding vp9 is time and resource costy.
 		if ld.IsAnimated {
@@ -77,7 +78,11 @@ func convertSToTGFormat(ctx context.Context, ld *LineData) {
 		} else {
 			s.ConvertedFile, err = IMToWebpTGStatic(s.OriginalFile, s.ConvertToEmoji)
 			if err != nil {
-				s.CError = err
+				if ctx.Err() != nil {
+					s.CError = ctx.Err()
+				} else {
+					s.CError = err
+				}
 			}
 			s.Wg.Done()
 		}

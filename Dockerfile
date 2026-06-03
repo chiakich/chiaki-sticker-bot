@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --break-system-packages rlottie-python emoji
+RUN pip3 install --break-system-packages rlottie-python emoji pillow
 
 COPY tools/msb_emoji.py /usr/local/bin/msb_emoji.py
 COPY tools/msb_kakao_decrypt.py /usr/local/bin/msb_kakao_decrypt.py

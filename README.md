@@ -83,7 +83,7 @@ The Dockerfile in this repo includes all required dependencies. For manual build
 * bsdtar (libarchive-tools)
 * ffmpeg
 * curl, gifsicle
-* python3 with `emoji` and `rlottie-python` packages
+* python3 with `emoji`, `rlottie-python`, and `pillow` packages
 
 ---
 

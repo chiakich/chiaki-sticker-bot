@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -50,6 +51,11 @@ var IDENTIFY_ARGS []string
 // -loglevel error : suppress info/warning messages, only show errors
 // -nostats        : suppress the frame=.../fps=.../size=... progress line
 var ffmpegQ = []string{"-hide_banner", "-loglevel", "error", "-nostats"}
+
+var (
+	lottieGIFSemaphore     chan struct{}
+	lottieGIFSemaphoreOnce sync.Once
+)
 
 const (
 	FORMAT_TG_REGULAR_STATIC   = "tg_reg_static"
@@ -117,6 +123,21 @@ func CheckDeps() []string {
 		unfoundBins = append(unfoundBins, "gifsicle")
 	}
 	return unfoundBins
+}
+
+func acquireLottieGIFSlot() func() {
+	lottieGIFSemaphoreOnce.Do(func() {
+		concurrency := 1
+		if value, err := strconv.Atoi(os.Getenv("MSB_RLOTTIE_CONCURRENCY")); err == nil && value > 0 {
+			concurrency = value
+		}
+		lottieGIFSemaphore = make(chan struct{}, concurrency)
+	})
+
+	lottieGIFSemaphore <- struct{}{}
+	return func() {
+		<-lottieGIFSemaphore
+	}
 }
 
 // Convert any image to static WEBP image, for Telegram use.
@@ -721,6 +742,9 @@ func IMStackToWebp(base string, overlay string) (string, error) {
 
 // Replaces tgs to gif.
 func RlottieToGIF(f string) (string, error) {
+	release := acquireLottieGIFSlot()
+	defer release()
+
 	bin := "msb_rlottie.py"
 	fOut := strings.ReplaceAll(f, ".tgs", ".gif")
 	args := []string{f, fOut}

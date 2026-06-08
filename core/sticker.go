@@ -50,13 +50,9 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	// path below would otherwise stay silent for minutes while animated stickers
 	// transcode, making the bot look stuck on "Preparing stickers".
 	convTotal := len(ud.stickerData.stickers)
+	lastConvProgressEdit := time.Time{}
 	for i, sf := range ud.stickerData.stickers {
-		sf.wg.Wait()
-		// Edit only at milestones to stay well under Telegram's rate limit.
-		if i == 0 || i+1 == convTotal || (convTotal >= 4 && (i+1)%(convTotal/4) == 0) {
-			prog := "<code>Converting / 轉檔中...\n       " + strconv.Itoa(i+1) + " of " + strconv.Itoa(convTotal) + "</code>"
-			editProgressMsg(0, 0, prog, pText, teleMsg, c)
-		}
+		lastConvProgressEdit = waitStickerConversionProgress(sf, i, convTotal, lastConvProgressEdit, pText, teleMsg, c)
 	}
 
 	//Try batch create.
@@ -147,6 +143,75 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	editProgressMsg(0, 0, "Success! /start", pText, teleMsg, c)
 	sendSFromSS(c, ud.stickerData.id, teleMsg)
 	return nil
+}
+
+func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEdit time.Time, pText string, teleMsg *tele.Message, c tele.Context) time.Time {
+	done := make(chan struct{})
+	go func() {
+		sf.wg.Wait()
+		close(done)
+	}()
+
+	start := time.Now()
+	firstNotice := time.NewTimer(3 * time.Second)
+	heartbeat := time.NewTicker(20 * time.Second)
+	defer firstNotice.Stop()
+	defer heartbeat.Stop()
+
+	edit := func(doneCount int, activeIndex int, elapsed time.Duration, force bool) {
+		now := time.Now()
+		if !force && now.Sub(lastEdit) < 3*time.Second {
+			return
+		}
+		prog := conversionProgressText(doneCount, total, activeIndex, elapsed)
+		editProgressMsg(0, 0, prog, pText, teleMsg, c)
+		lastEdit = now
+	}
+
+	for {
+		select {
+		case <-done:
+			doneCount := index + 1
+			force := doneCount == total
+			if total <= 30 || shouldEditConversionMilestone(doneCount, total) {
+				edit(doneCount, 0, 0, force)
+			}
+			return lastEdit
+		case <-firstNotice.C:
+			edit(index, index+1, time.Since(start), true)
+		case <-heartbeat.C:
+			edit(index, index+1, time.Since(start), true)
+		}
+	}
+}
+
+func shouldEditConversionMilestone(done int, total int) bool {
+	if done == 1 || done == total {
+		return true
+	}
+	if total < 4 {
+		return false
+	}
+	return done%(total/4) == 0
+}
+
+func conversionProgressText(done int, total int, active int, elapsed time.Duration) string {
+	prog := "<code>Converting / 轉檔中...\n       " + strconv.Itoa(done) + " of " + strconv.Itoa(total)
+	if active > 0 {
+		prog += "\n       working on " + strconv.Itoa(active) + " of " + strconv.Itoa(total)
+	}
+	if elapsed >= 10*time.Second {
+		prog += "\n       still working " + formatShortDuration(elapsed)
+	}
+	return prog + "</code>"
+}
+
+func formatShortDuration(d time.Duration) string {
+	seconds := int(d.Round(time.Second).Seconds())
+	if seconds < 60 {
+		return strconv.Itoa(seconds) + "s"
+	}
+	return strconv.Itoa(seconds/60) + "m" + strconv.Itoa(seconds%60) + "s"
 }
 
 // Only fatal error should be returned.

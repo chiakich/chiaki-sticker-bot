@@ -132,9 +132,7 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			}
 			var cf string
 			if isAnimated {
-				// Stream PNG frames from ImageMagick directly to ffmpeg via pipe.
-				// Avoids large intermediate files; lossless quality.
-				cf, err = WebpToWebmViaPipe(f, false)
+				cf, err = KakaoAnimatedWebpToWebm(f)
 			} else {
 				cf, err = IMToWebpTGStatic(f, false)
 			}

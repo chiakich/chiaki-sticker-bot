@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,8 @@ type webmRateControl struct {
 	bitrate string
 	maxrate string
 }
+
+const kakaoWebmOutputFPS = 30.0
 
 var kakaoWebmRateControls = []webmRateControl{
 	{bitrate: "650k", maxrate: "980k"},
@@ -42,10 +45,10 @@ var kakaoWebmRateControls = []webmRateControl{
 // WebM. The default path writes PNG frames to disk, then runs two-pass VP9 so
 // fast-motion frames get better bit allocation under Telegram's 255KiB limit.
 func KakaoAnimatedWebpToWebm(f string, status *ConversionStatus) (string, error) {
-	if os.Getenv("MSB_KAKAO_FAST_PIPE") != "1" {
-		return webpToWebmViaFramesTwoPass(f, false, status)
+	if os.Getenv("MSB_KAKAO_FAST_PIPE") == "1" && webpHasConstantFrameDelay(f) {
+		return webpToWebmViaPipeFast(f, false, status)
 	}
-	return webpToWebmViaPipeFast(f, false, status)
+	return webpToWebmViaFramesTwoPass(f, false, status)
 }
 
 func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
@@ -159,7 +162,6 @@ func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, 
 func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
 	pathOut := f + ".webm"
 	status.Clear()
-	fps := webpFPS(f)
 	frameDir, err := os.MkdirTemp(filepath.Dir(f), filepath.Base(f)+".frames-*")
 	if err != nil {
 		return pathOut, err
@@ -186,10 +188,15 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *Conversion
 	if err != nil || len(frames) == 0 {
 		return pathOut, errors.New("webpToWebmViaFramesTwoPass: no frames produced")
 	}
+	timing := webpTimingForFrames(f, len(frames))
+	timedFramePattern, _, err := materializeTimedFrameSequence(frameDir, frames, timing.durations, timing.outputFPS)
+	if err != nil {
+		return pathOut, err
+	}
 
 	var lastErr error
 	for _, rc := range kakaoWebmRateControls {
-		out, err := encodeWebmFramesTwoPass(framePattern, pathOut, scale, fps, frameDir, rc)
+		out, err := encodeWebmFramesTwoPass(timedFramePattern, pathOut, scale, timing.outputFPS, frameDir, rc)
 		if err != nil {
 			log.Warnln("webpToWebmViaFramesTwoPass ffmpeg ERROR:", string(out))
 			return pathOut, err
@@ -260,19 +267,192 @@ func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, 
 	return "", nil
 }
 
-// webpFPS returns the playback FPS of an animated WebP by reading the first
-// frame's delay (in centiseconds) via identify. Falls back to 25 if unknown.
+type webpTiming struct {
+	durations []float64
+	outputFPS float64
+}
+
+func webpTimingForFrames(f string, frameCount int) webpTiming {
+	durations, ok := webpFrameDurations(f, frameCount)
+	if !ok {
+		fps := webpFPS(f)
+		if fps <= 0 {
+			fps = 25
+		}
+		durations = fallbackFrameDurations(frameCount, fps)
+	}
+	return webpTiming{
+		durations: durations,
+		outputFPS: kakaoWebmOutputFPS,
+	}
+}
+
+func materializeTimedFrameSequence(parentDir string, frames []string, durations []float64, fps float64) (string, int, error) {
+	if len(frames) == 0 {
+		return "", 0, errors.New("materializeTimedFrameSequence: no frames")
+	}
+	if len(frames) != len(durations) {
+		return "", 0, errors.New("materializeTimedFrameSequence: frame/duration count mismatch")
+	}
+	if fps <= 0 {
+		fps = kakaoWebmOutputFPS
+	}
+
+	timedDir := filepath.Join(parentDir, "timed")
+	if err := os.MkdirAll(timedDir, 0755); err != nil {
+		return "", 0, err
+	}
+
+	maxFrames := int(math.Ceil(telegramVideoMaxDuration * fps))
+	if maxFrames < 1 {
+		maxFrames = 1
+	}
+
+	outFrameCount := 0
+	for i, frame := range frames {
+		repeat := int(math.Round(durations[i] * fps))
+		if repeat < 1 {
+			repeat = 1
+		}
+		for j := 0; j < repeat && outFrameCount < maxFrames; j++ {
+			dst := filepath.Join(timedDir, fmt.Sprintf("frame-%05d.png", outFrameCount))
+			if err := linkOrCopyFrame(frame, dst); err != nil {
+				return "", 0, err
+			}
+			outFrameCount++
+		}
+		if outFrameCount >= maxFrames {
+			break
+		}
+	}
+	if outFrameCount == 0 {
+		return "", 0, errors.New("materializeTimedFrameSequence: no timed frames produced")
+	}
+
+	return filepath.Join(timedDir, "frame-%05d.png"), outFrameCount, nil
+}
+
+func linkOrCopyFrame(src string, dst string) error {
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+func webpFrameDurations(f string, frameCount int) ([]float64, bool) {
+	delays, ok := webpDelayTicks(f)
+	if !ok {
+		return nil, false
+	}
+	return normalizeFrameDurations(delays, frameCount), true
+}
+
+func normalizeFrameDurations(delayTicks []float64, frameCount int) []float64 {
+	if frameCount <= 0 {
+		return nil
+	}
+	if len(delayTicks) == 0 {
+		return fallbackFrameDurations(frameCount, 25)
+	}
+
+	durations := make([]float64, frameCount)
+	for i := 0; i < frameCount; i++ {
+		delayIndex := i
+		if delayIndex >= len(delayTicks) {
+			delayIndex = len(delayTicks) - 1
+		}
+		durations[i] = delayTicks[delayIndex] / 100.0
+	}
+	return durations
+}
+
+func fallbackFrameDurations(frameCount int, fps float64) []float64 {
+	if fps <= 0 {
+		fps = 25
+	}
+	durations := make([]float64, frameCount)
+	duration := 1.0 / fps
+	for i := range durations {
+		durations[i] = duration
+	}
+	return durations
+}
+
+// webpFPS returns the average playback FPS of an animated WebP from all frame
+// delays reported by ImageMagick. Falls back to 25 if unknown.
 func webpFPS(f string) float64 {
+	delays, ok := webpDelayTicks(f)
+	if !ok {
+		return 25
+	}
+	return averageFPSFromDelayTicks(delays)
+}
+
+func averageFPSFromDelayTicks(delays []float64) float64 {
+	totalTicks := 0.0
+	for _, delay := range delays {
+		totalTicks += delay
+	}
+	if totalTicks <= 0 {
+		return 25
+	}
+	return float64(len(delays)) * 100.0 / totalTicks
+}
+
+func webpDelayTicks(f string) ([]float64, bool) {
 	out, err := exec.Command(IDENTIFY_BIN,
 		append(IDENTIFY_ARGS, "-format", "%T\n", "WEBP:"+f)...,
 	).Output()
 	if err != nil || len(out) == 0 {
-		return 25
+		return nil, false
 	}
-	first := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
-	delay, err := strconv.ParseFloat(strings.TrimSpace(first), 64)
-	if err != nil || delay <= 0 {
-		return 25
+	return parseWebpDelayTicks(string(out))
+}
+
+func parseWebpDelayTicks(out string) ([]float64, bool) {
+	var delays []float64
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		delay, err := strconv.ParseFloat(strings.TrimSpace(line), 64)
+		if err != nil || delay <= 0 {
+			return nil, false
+		}
+		delays = append(delays, delay)
 	}
-	return 100.0 / delay
+	if len(delays) == 0 {
+		return nil, false
+	}
+	return delays, true
+}
+
+func webpHasConstantFrameDelay(f string) bool {
+	delays, ok := webpDelayTicks(f)
+	if !ok {
+		return false
+	}
+	if len(delays) < 2 {
+		return true
+	}
+	first := delays[0]
+	for _, delay := range delays[1:] {
+		if math.Abs(delay-first) > 0.001 {
+			return false
+		}
+	}
+	return true
 }

@@ -141,6 +141,7 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 		insertUserS(c.Sender().ID, ud.stickerData.id, ud.stickerData.title, time.Now().Unix())
 	}
 	editProgressMsg(0, 0, "Success! /start", pText, teleMsg, c)
+	c.Send("If you like this bot, please give us a ⭐️\n如果你喜歡這個 Bot，請幫我們按個 ⭐️\nhttps://github.com/akira02/chiaki-sticker-bot")
 	sendSFromSS(c, ud.stickerData.id, teleMsg)
 	return nil
 }

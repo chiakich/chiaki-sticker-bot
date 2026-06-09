@@ -543,6 +543,10 @@ TG ID: <code>%s</code>
 TG Title: <a href="%s">%s</a>
 
 Success. 成功完成. /start
+
+If you like this bot, please give us a ⭐️
+如果你喜歡這個 Bot，請幫我們按個 ⭐️
+https://github.com/akira02/chiaki-sticker-bot
 	`, ud.lineData.Category,
 		ud.lineData.Id,
 		ud.stickerData.id,

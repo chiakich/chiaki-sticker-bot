@@ -25,8 +25,6 @@ type webmRateControl struct {
 const kakaoWebmOutputFPS = 30.0
 
 var kakaoWebmRateControls = []webmRateControl{
-	{bitrate: "650k", maxrate: "980k"},
-	{bitrate: "630k", maxrate: "940k"},
 	{bitrate: "610k", maxrate: "910k"},
 	{bitrate: "590k", maxrate: "880k"},
 	{bitrate: "560k", maxrate: "840k"},

@@ -36,16 +36,11 @@ func FFToWebmTGVideoContextWithStatus(ctx context.Context, f string, isCustomEmo
 		return "", err
 	}
 
-	// ffmpeg cannot decode animated WebP, so convert to APNG up front rather
-	// than letting the first ffmpeg attempt fail and relying on the fallback.
+	// ffmpeg cannot decode animated WebP directly. Route those through the
+	// lower-memory WebP pipeline instead of materializing a large APNG first.
 	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
-		log.Debugln("FFToWebmTGVideo: animated WebP detected, converting to APNG first.")
-		f2, err := IMToApng(f)
-		if err != nil {
-			log.Warnln("IMToApng ERROR:", err)
-			return "", err
-		}
-		f = f2
+		log.Debugln("FFToWebmTGVideo: animated WebP detected, using streaming/frame-sequence pipeline.")
+		return animatedWebpToWebmTGVideoContext(ctx, f, isCustomEmoji, status)
 	}
 
 	if duration, ok := mediaDurationSeconds(f); ok && duration > telegramVideoMaxDuration {
@@ -149,16 +144,8 @@ func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (str
 		return "", err
 	}
 	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
-		log.Debugln("FFToWebmSafe: animated WebP detected, converting to APNG first.")
-		f2, err := IMToApng(f)
-		if err != nil {
-			if ctx.Err() != nil {
-				return "", ctx.Err()
-			}
-			log.Warnln("IMToApng ERROR:", err)
-			return "", err
-		}
-		f = f2
+		log.Debugln("FFToWebmSafe: animated WebP detected, using streaming/frame-sequence pipeline.")
+		return animatedWebpToWebmTGVideoContext(ctx, f, isCustomEmoji, nil)
 	}
 
 	pathOut := f + ".webm"

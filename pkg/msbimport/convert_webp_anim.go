@@ -2,6 +2,7 @@ package msbimport
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -46,12 +47,33 @@ var kakaoWebmRateControls = []webmRateControl{
 // fast-motion frames get better bit allocation under Telegram's 255KiB limit.
 func KakaoAnimatedWebpToWebm(f string, status *ConversionStatus) (string, error) {
 	if os.Getenv("MSB_KAKAO_FAST_PIPE") == "1" && webpHasConstantFrameDelay(f) {
-		return webpToWebmViaPipeFast(f, false, status)
+		return webpToWebmViaPipeFastContext(context.Background(), f, false, status)
 	}
 	return webpToWebmViaFramesTwoPass(f, false, status)
 }
 
 func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	return webpToWebmViaPipeFastContext(context.Background(), f, isCustomEmoji, status)
+}
+
+func animatedWebpToWebmTGVideoContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return f + ".webm", err
+	}
+	if webpHasConstantFrameDelay(f) {
+		return webpToWebmViaPipeFastContext(ctx, f, isCustomEmoji, status)
+	}
+	log.Debugln("animatedWebpToWebmTGVideoContext: variable frame delays detected, using frame-sequence path.")
+	return webpToWebmViaFramesTwoPass(f, isCustomEmoji, status)
+}
+
+func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pathOut := f + ".webm"
 	status.Clear()
 
@@ -65,7 +87,10 @@ func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatu
 
 	var lastErr error
 	for _, rc := range kakaoWebmRateControls {
-		err := webpToWebmViaPipeOnce(f, pathOut, scale, fps, rc)
+		if err := ctx.Err(); err != nil {
+			return pathOut, err
+		}
+		err := webpToWebmViaPipeOnceContext(ctx, f, pathOut, scale, fps, rc)
 		if err != nil {
 			lastErr = err
 			log.Warnln("webpToWebmViaPipeFast: retrying with two-pass frame sequence fallback.")
@@ -99,6 +124,13 @@ func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatu
 }
 
 func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, rc webmRateControl) error {
+	return webpToWebmViaPipeOnceContext(context.Background(), f, pathOut, scale, fps, rc)
+}
+
+func webpToWebmViaPipeOnceContext(ctx context.Context, f string, pathOut string, scale string, fps float64, rc webmRateControl) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ffArgs := append([]string{}, ffmpegQ...)
 	ffArgs = append(ffArgs,
 		"-f", "image2pipe", "-vcodec", "png",
@@ -121,11 +153,16 @@ func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, 
 	imArgs = append(imArgs, imageMagickResourceArgs()...)
 	imArgs = append(imArgs, "WEBP:"+f, "-coalesce", "png:-")
 
-	imCmd := exec.Command(CONVERT_BIN, imArgs...)
-	ffCmd := niceCommand(FFMPEG_BIN, ffArgs...)
+	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+	defer cancel()
+
+	imCmd := exec.CommandContext(runCtx, CONVERT_BIN, imArgs...)
+	ffCmd := niceCommandContext(runCtx, FFMPEG_BIN, ffArgs...)
 
 	pr, pw := io.Pipe()
 	imCmd.Stdout = pw
+	var imOut bytes.Buffer
+	imCmd.Stderr = &imOut
 	var ffOut bytes.Buffer
 	ffCmd.Stdin = pr
 	ffCmd.Stderr = &ffOut
@@ -146,8 +183,15 @@ func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, 
 	ffErr := ffCmd.Wait()
 	releaseFFmpeg()
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if imErr != nil || ffErr != nil {
+		log.Warnln("webpToWebmViaPipeOnce ERROR ImageMagick:", imOut.String())
 		log.Warnln("webpToWebmViaPipeOnce ERROR ffmpeg:", ffOut.String())
+		if runCtx.Err() != nil {
+			return runCtx.Err()
+		}
 		if ffErr != nil {
 			return ffErr
 		}

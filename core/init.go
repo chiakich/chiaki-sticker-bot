@@ -279,9 +279,10 @@ func initGoCron() {
 	// Delay start.
 	time.Sleep(15 * time.Second)
 	cronScheduler = gocron.NewScheduler(time.UTC)
+	cronScheduler.WaitForScheduleAll()
 	cronScheduler.Every(1).Days().Do(purgeOutdatedStorageData)
 	if msbconf.DbAddr != "" {
-		cronScheduler.Every(1).Weeks().Do(curateDatabase)
+		cronScheduler.Every(2).Days().Do(curateDatabase)
 	}
 	cronScheduler.StartBlocking()
 }

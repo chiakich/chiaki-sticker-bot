@@ -2,6 +2,8 @@ package core
 
 import (
 	"database/sql"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -61,6 +63,7 @@ value: -1
 var db *sql.DB
 
 const DB_VER = "6"
+const defaultDatabaseCurationBatchSize = 100
 
 func initDB(dbname string) error {
 	addr := msbconf.DbAddr
@@ -403,50 +406,125 @@ func searchLineS(keywords []string) []LineStickerQ {
 func curateDatabase() error {
 	log.Info("Starting database curation...")
 	invalidSSCount := 0
-	//Line stickers.
-	ls := queryLineS("QUERY_ALL")
-	for _, l := range ls {
-		log.Debugf("Scanning:%s", l.Tg_id)
-		ss, err := b.StickerSet(l.Tg_id)
-		if err != nil {
-			if strings.Contains(err.Error(), "is invalid") {
-				log.Infof("SS:%s is invalid. purging it from db...", l.Tg_id)
-				invalidSSCount++
-				deleteLineS(l.Tg_id)
-				deleteUserS(l.Tg_id)
-			} else {
-				log.Errorln(err)
-			}
-			continue
-		}
 
-		for si := range ss.Stickers {
-			if si > 0 {
-				if ss.Stickers[si].Emoji != ss.Stickers[si-1].Emoji {
-					log.Debugln("Setting auto emoji to FALSE for ", l.Tg_id)
-					updateLineSAE(false, l.Tg_id)
+	if db == nil {
+		log.Warn("Database curation skipped because db is nil.")
+		return nil
+	}
+
+	batchSize := databaseCurationBatchSize()
+
+	for after := ""; ; {
+		tgIDs, err := queryLineCurationIDs(after, batchSize)
+		if err != nil {
+			log.Errorln("curateDatabase: query line stickers error:", err)
+			return err
+		}
+		if len(tgIDs) == 0 {
+			break
+		}
+		after = tgIDs[len(tgIDs)-1]
+
+		for _, tgID := range tgIDs {
+			log.Debugf("Scanning:%s", tgID)
+			ss, err := b.StickerSet(tgID)
+			if err != nil {
+				if strings.Contains(err.Error(), "is invalid") {
+					log.Infof("SS:%s is invalid. purging it from db...", tgID)
+					invalidSSCount++
+					deleteLineS(tgID)
+					deleteUserS(tgID)
+				} else {
+					log.Errorln(err)
+				}
+				continue
+			}
+
+			for si := range ss.Stickers {
+				if si > 0 {
+					if ss.Stickers[si].Emoji != ss.Stickers[si-1].Emoji {
+						log.Debugln("Setting auto emoji to FALSE for ", tgID)
+						updateLineSAE(false, tgID)
+					}
 				}
 			}
 		}
+
+		if len(tgIDs) < batchSize {
+			break
+		}
 	}
 
-	//User stickers.
-	us := queryUserS(-1)
-	for _, u := range us {
-		log.Debugf("Checking:%s", u.tg_id)
-		_, err := b.StickerSet(u.tg_id)
+	for after := ""; ; {
+		tgIDs, err := queryUserCurationIDs(after, batchSize)
 		if err != nil {
-			if strings.Contains(err.Error(), "is invalid") {
-				log.Warnf("SS:%s is invalid. purging it from db...", u.tg_id)
-				deleteUserS(u.tg_id)
-			} else {
-				log.Errorln(err)
+			log.Errorln("curateDatabase: query user stickers error:", err)
+			return err
+		}
+		if len(tgIDs) == 0 {
+			break
+		}
+		after = tgIDs[len(tgIDs)-1]
+
+		for _, tgID := range tgIDs {
+			log.Debugf("Checking:%s", tgID)
+			_, err := b.StickerSet(tgID)
+			if err != nil {
+				if strings.Contains(err.Error(), "is invalid") {
+					log.Warnf("SS:%s is invalid. purging it from db...", tgID)
+					deleteUserS(tgID)
+				} else {
+					log.Errorln(err)
+				}
 			}
+		}
+
+		if len(tgIDs) < batchSize {
+			break
 		}
 	}
 
 	log.Infof("Database curation done. invalid:%d", invalidSSCount)
 	return nil
+}
+
+func databaseCurationBatchSize() int {
+	if value, err := strconv.Atoi(os.Getenv("MSB_DB_CURATION_BATCH_SIZE")); err == nil && value > 0 {
+		return value
+	}
+	return defaultDatabaseCurationBatchSize
+}
+
+func queryLineCurationIDs(after string, limit int) ([]string, error) {
+	return queryCurationIDs("SELECT DISTINCT tg_id FROM line WHERE tg_id IS NOT NULL AND tg_id > ? ORDER BY tg_id LIMIT ?", after, limit)
+}
+
+func queryUserCurationIDs(after string, limit int) ([]string, error) {
+	return queryCurationIDs("SELECT DISTINCT tg_id FROM stickers WHERE tg_id IS NOT NULL AND tg_id > ? ORDER BY tg_id LIMIT ?", after, limit)
+}
+
+func queryCurationIDs(query string, after string, limit int) ([]string, error) {
+	rows, err := db.Query(query, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0, limit)
+	for rows.Next() {
+		var tgID string
+		if err := rows.Scan(&tgID); err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(tgID) == "" {
+			continue
+		}
+		ids = append(ids, tgID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // func setLastLineDedupIndex(index int) {

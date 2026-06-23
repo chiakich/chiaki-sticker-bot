@@ -186,19 +186,19 @@ func onError(err error, c tele.Context) {
 	switch {
 	case errors.Is(err, context.Canceled):
 		// Expected when a user cancels an in-flight import/conversion.
-		log.Debugln("Context canceled:", err)
+		log.Debugln("Context canceled:", sanitizeErrorText(err))
 		return
 	case isTimeoutError(err):
-		log.Warnln("Timeout error:", err)
+		log.Warnln("Timeout error:", sanitizeErrorText(err))
 	case errors.As(err, &apiErr):
 		// Telegram API errors are user-facing (bad input, etc.), no stack trace needed.
 		log.Warnf("Telegram API error (code %d): %s", apiErr.Code, apiErr.Description)
 	case isTransientNetworkError(err):
 		// Transient network blip, no stack trace and no point resending. Will recover.
-		log.Warnln("Transient network error talking to Telegram:", err)
+		log.Warnln("Transient network error talking to Telegram:", sanitizeErrorText(err))
 		return
 	case errors.Is(err, errNoStickerAvailable):
-		log.Warnln("No sticker available to commit:", err)
+		log.Warnln("No sticker available to commit:", sanitizeErrorText(err))
 		if c != nil {
 			reason := noStickerAvailableReason(err)
 			c.Send("No sticker was available to import. Please try another sticker link or start again. /start\n"+
@@ -211,7 +211,7 @@ func onError(err error, c tele.Context) {
 		}
 		return
 	case errors.Is(err, msbimport.ErrStickerTooLarge):
-		log.Warnln("Sticker too large after compression:", err)
+		log.Warnln("Sticker too large after compression:", sanitizeErrorText(err))
 		if c != nil {
 			sendStickerCompressionFailed(c, err)
 			cleanUserDataAndDir(c.Sender().ID)
@@ -219,7 +219,7 @@ func onError(err error, c tele.Context) {
 		return
 	default:
 		log.Error("User encountered fatal error!")
-		log.Errorln("Raw error:", err)
+		log.Errorln("Raw error:", sanitizeErrorText(err))
 		log.Errorln(string(debug.Stack()))
 	}
 
@@ -241,15 +241,14 @@ func onError(err error, c tele.Context) {
 		}
 		go insertFailedEvent(c.Sender().ID, c.Sender().Username,
 			strings.TrimSpace(c.Sender().FirstName+" "+c.Sender().LastName),
-			action, packID, err.Error())
+			action, packID, sanitizeErrorText(err))
 	}
 	sendFatalError(err, c)
 	cleanUserDataAndDir(c.Sender().ID)
 }
 
 func noStickerAvailableReason(err error) string {
-	reason := err.Error()
-	reason = strings.ReplaceAll(reason, msbconf.BotToken, "***")
+	reason := sanitizeLogText(err.Error())
 	reason = strings.TrimPrefix(reason, errNoStickerAvailable.Error()+": ")
 	reason = strings.TrimSuffix(reason, ": "+msbimport.ErrNoStickerFound.Error())
 	if reason == "" || reason == errNoStickerAvailable.Error() {
@@ -330,10 +329,10 @@ func initGoCron() {
 }
 
 func initLogrus() {
-	log.SetFormatter(&log.TextFormatter{
+	log.SetFormatter(sanitizingFormatter{formatter: &log.TextFormatter{
 		ForceColors:            true,
 		DisableLevelTruncation: true,
-	})
+	}})
 
 	level, err := log.ParseLevel(msbconf.LogLevel)
 	if err != nil {

@@ -66,7 +66,7 @@ func initHTTPServer() *http.Server {
 		u, err := url.Parse(msbconf.WebappUrl)
 		if err != nil {
 			log.Error("Failed parsing WebApp URL!")
-			log.Fatalln(err.Error())
+			log.Fatalln(sanitizeErrorText(err))
 		}
 		p := u.Path
 
@@ -190,7 +190,7 @@ func apiSS(c *gin.Context) {
 	case "edit":
 		ud, err := checkGetUd(uid, qid)
 		if err != nil {
-			c.String(http.StatusBadRequest, err.Error())
+			c.String(http.StatusBadRequest, sanitizeErrorText(err))
 			return
 		}
 		// Refresh SS data since it might already changed.
@@ -266,7 +266,7 @@ func apiEditResult(c *gin.Context) {
 	}
 	ud, err := checkGetUd(uid, qid)
 	if err != nil {
-		c.String(http.StatusBadRequest, err.Error())
+		c.String(http.StatusBadRequest, sanitizeErrorText(err))
 		return
 	}
 	if ud.state == ST_PROCESSING {
@@ -336,7 +336,7 @@ func apiEditMove(c *gin.Context) {
 	newIndex, _ := strconv.Atoi(c.PostForm("newIndex"))
 	ud, err := checkGetUd(uid, qid)
 	if err != nil {
-		c.String(http.StatusBadRequest, err.Error())
+		c.String(http.StatusBadRequest, sanitizeErrorText(err))
 		return
 	}
 	smo := &StickerMoveObject{
@@ -349,7 +349,7 @@ func apiEditMove(c *gin.Context) {
 	ud.webAppWorkerPool.Invoke(smo)
 	smo.wg.Wait()
 	if smo.err != nil {
-		c.String(http.StatusInternalServerError, smo.err.Error())
+		c.String(http.StatusInternalServerError, sanitizeErrorText(smo.err))
 		return
 	}
 }

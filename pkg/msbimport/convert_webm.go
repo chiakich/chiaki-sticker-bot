@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -197,46 +198,92 @@ func FFToGif(f string) (string, error) {
 	pathOut := f + ".gif"
 	palettePath := f + ".palette.png"
 	defer os.Remove(palettePath)
+	timeout := convertCommandTimeout()
+
+	profiles := []struct {
+		name          string
+		paletteFilter string
+		paletteUse    string
+	}{
+		{
+			name:          "full",
+			paletteFilter: "palettegen=reserve_transparent=1",
+			paletteUse:    "[0:v][1:v]paletteuse=alpha_threshold=128:dither=sierra2_4a",
+		},
+		{
+			name:          "light",
+			paletteFilter: "fps=15,scale=320:-1:flags=lanczos,palettegen=reserve_transparent=1",
+			paletteUse:    "[0:v]fps=15,scale=320:-1:flags=lanczos[gifsrc];[gifsrc][1:v]paletteuse=alpha_threshold=128:dither=sierra2_4a",
+		},
+	}
+
+	var lastErr error
+	for i, profile := range profiles {
+		os.Remove(pathOut)
+		os.Remove(palettePath)
+		err := ffToGifWithProfile(decoder, f, pathOut, palettePath, timeout, profile.paletteFilter, profile.paletteUse)
+		if err == nil {
+			//Optimize GIF produced by ffmpeg
+			commandOutputWithTimeout("gifsicle", "--batch", "-O2", "--lossy=60", pathOut)
+			return pathOut, nil
+		}
+		lastErr = err
+		if errors.Is(err, context.DeadlineExceeded) && i < len(profiles)-1 {
+			log.Warnf("ffToGif %s profile timed out after %s, retrying lighter profile", profile.name, timeout)
+			continue
+		}
+		return "", err
+	}
+	return "", lastErr
+}
+
+func ffToGifWithProfile(decoder []string, f string, pathOut string, palettePath string, timeout time.Duration, paletteFilter string, paletteUse string) error {
 	bin := FFMPEG_BIN
 
 	// Pass 1: generate palette only.
 	args1 := append([]string{}, decoder...)
 	args1 = append(args1, ffmpegQ...)
 	args1 = append(args1, "-i", f,
-		"-vf", "palettegen=reserve_transparent=1",
+		"-vf", paletteFilter,
 		"-y", palettePath)
 
-	ctx1, cancel1 := context.WithTimeout(context.Background(), ffmpegTimeout)
+	ctx1, cancel1 := context.WithTimeout(context.Background(), timeout)
 	releaseFFmpeg := acquireFFmpegSlot()
 	out, err := niceCommandContext(ctx1, bin, args1...).CombinedOutput()
 	releaseFFmpeg()
+	runErr := ctx1.Err()
 	cancel1()
 	if err != nil {
 		log.Warnf("ffToGif palettegen ERROR:\n%s", string(out))
-		return "", err
+		if runErr != nil {
+			return fmt.Errorf("%w: ffToGif palettegen timed out after %s", runErr, timeout)
+		}
+		return err
 	}
 
 	// Pass 2: apply palette. `-c:v libvpx-vp9` only scopes to the first -i.
 	args2 := append([]string{}, decoder...)
 	args2 = append(args2, ffmpegQ...)
 	args2 = append(args2, "-i", f, "-i", palettePath,
-		"-lavfi", "[0:v][1:v]paletteuse=alpha_threshold=128:dither=sierra2_4a",
+		"-lavfi", paletteUse,
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
 		"-y", pathOut)
 
-	ctx2, cancel2 := context.WithTimeout(context.Background(), ffmpegTimeout)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 	releaseFFmpeg = acquireFFmpegSlot()
 	out, err = niceCommandContext(ctx2, bin, args2...).CombinedOutput()
 	releaseFFmpeg()
+	runErr = ctx2.Err()
 	cancel2()
 	if err != nil {
 		log.Warnf("ffToGif ERROR:\n%s", string(out))
-		return "", err
+		if runErr != nil {
+			return fmt.Errorf("%w: ffToGif paletteuse timed out after %s", runErr, timeout)
+		}
+		return err
 	}
-	//Optimize GIF produced by ffmpeg
-	commandOutputWithTimeout("gifsicle", "--batch", "-O2", "--lossy=60", pathOut)
 
-	return pathOut, err
+	return nil
 }
 
 // Replaces .webm ext to .webp

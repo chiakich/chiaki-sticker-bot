@@ -463,7 +463,7 @@ func waitSFile(c tele.Context) error {
 	if c.Message().Media() != nil {
 		err := appendMedia(c)
 		if err != nil {
-			c.Reply("Failed processing this file. 處理此檔案時錯誤:\n" + err.Error())
+			c.Reply("Failed processing this file. 處理此檔案時錯誤:\n" + sanitizeErrorText(err))
 		}
 		return nil
 	} else {

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 )
 
 var errNoStickerAvailable = errors.New("no sticker available")
+
+const telegramStickerAPIAttempts = 3
 
 //TODO: Shrink oversized function.
 
@@ -68,9 +71,9 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	if createSet {
 		err := createStickerSetBatch(ud.ctx, ud.stickerData.stickers, c, ssName, ssTitle, ssType)
 		if err != nil {
-			log.Warnln("sticker.go: Error batch create:", err.Error())
-			if reconcileOccupiedBatchCreate(c, err, ssName, len(ud.stickerData.stickers)) {
-				log.Warnln("sticker.go: Batch create returned SHORTNAME_OCCUPY_FAILED, but sticker set exists; treating batch create as success.")
+			log.Warnln("sticker.go: Error batch create:", sanitizeErrorText(err))
+			if reconcileBatchCreateAfterError(c, err, ssName, len(ud.stickerData.stickers)) {
+				log.Warnln("sticker.go: Batch create failed locally, but sticker set exists; treating batch create as success.")
 				batchCreateSuccess = true
 				if len(ud.stickerData.stickers) < 51 {
 					committedStickers = len(ud.stickerData.stickers)
@@ -345,6 +348,29 @@ func isTelegramTemporaryServerError(err error) bool {
 		strings.Contains(errText, "(504)")
 }
 
+func isRetryableTelegramWriteError(err error) bool {
+	return isTimeoutError(err) || isTelegramTemporaryServerError(err)
+}
+
+func telegramStickerRetryDelay(attempt int) time.Duration {
+	return time.Duration(5+attempt*10) * time.Second
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if ctx == nil {
+		time.Sleep(d)
+		return nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 // Create sticker set if needed.
 func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name string, title string, ssType string) error {
 	var file string
@@ -383,13 +409,15 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 	}
 
 	var floodErr tele.FloodError
-	for i := 0; i < 3; i++ {
+	var lastErr error
+	for i := 0; i < telegramStickerAPIAttempts; i++ {
 		err := c.Bot().CreateStickerSet(c.Recipient(), []tele.InputSticker{input}, name, title, ssType)
 		if err == nil {
 			return nil
 		}
+		lastErr = err
 
-		log.Errorf("createStickerSet error:%s for set:%s.", err, name)
+		log.Errorf("createStickerSet error:%s for set:%s.", sanitizeErrorText(err), name)
 
 		if errors.As(err, &floodErr) {
 			sleepSec := floodErr.RetryAfter
@@ -397,13 +425,13 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 				log.Warnf("createStickerSet: RA=%ds too long, capping at 120s.", sleepSec)
 				sleepSec = 120
 			}
-			log.Warnf("createStickerSet: flood limit, sleeping %ds (attempt %d/3).", sleepSec, i+1)
+			log.Warnf("createStickerSet: flood limit, sleeping %ds (attempt %d/%d).", sleepSec, i+1, telegramStickerAPIAttempts)
 			time.Sleep(time.Duration(sleepSec) * time.Second)
 			continue
-		} else if isTelegramTemporaryServerError(err) {
-			sleepSec := 5 + i*10
-			log.Warnf("createStickerSet: temporary Telegram server error, sleeping %ds (attempt %d/3): %v", sleepSec, i+1, err)
-			time.Sleep(time.Duration(sleepSec) * time.Second)
+		} else if isRetryableTelegramWriteError(err) {
+			sleepTime := telegramStickerRetryDelay(i)
+			log.Warnf("createStickerSet: retryable Telegram error, sleeping %s (attempt %d/%d): %s", sleepTime, i+1, telegramStickerAPIAttempts, sanitizeErrorText(err))
+			time.Sleep(sleepTime)
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), "video_long") {
 			if safeMode {
@@ -412,17 +440,35 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 			}
 			log.Warnln("returned video_long, attempting safe mode.")
 			return createStickerSet(true, sf, c, name, title, ssType)
+		} else if reconcileOccupiedBatchCreate(c, err, name, 1) {
+			log.Warnln("createStickerSet returned SHORTNAME_OCCUPY_FAILED, but sticker set exists; treating create as success.")
+			return nil
 		} else {
 			return err
 		}
 	}
-	return errors.New("createStickerSet: exceeded retry limit due to flood limit")
+	return fmt.Errorf("createStickerSet: exceeded retry limit: %w", lastErr)
 }
 
 func reconcileOccupiedBatchCreate(c tele.Context, createErr error, name string, stickerCount int) bool {
 	if createErr == nil || !strings.Contains(strings.ToLower(createErr.Error()), "shortname_occupy_failed") {
 		return false
 	}
+	return reconcileCreatedStickerSet(c, name, stickerCount)
+}
+
+func reconcileBatchCreateAfterError(c tele.Context, createErr error, name string, stickerCount int) bool {
+	if createErr == nil {
+		return false
+	}
+	errText := strings.ToLower(createErr.Error())
+	if !strings.Contains(errText, "shortname_occupy_failed") && !isRetryableTelegramWriteError(createErr) {
+		return false
+	}
+	return reconcileCreatedStickerSet(c, name, stickerCount)
+}
+
+func reconcileCreatedStickerSet(c tele.Context, name string, stickerCount int) bool {
 	if stickerCount <= 0 {
 		return false
 	}
@@ -437,11 +483,14 @@ func reconcileOccupiedBatchCreate(c tele.Context, createErr error, name string, 
 		if err == nil {
 			gotCount := len(ss.Stickers)
 			if gotCount >= expectedCount {
-				log.Warnf("reconcileOccupiedBatchCreate: found existing set:%s with %d stickers, expected at least %d.", name, gotCount, expectedCount)
+				log.Warnf("reconcileCreatedStickerSet: found existing set:%s with %d stickers, expected at least %d.", name, gotCount, expectedCount)
 				return true
 			}
-			log.Warnf("reconcileOccupiedBatchCreate: found existing set:%s, but sticker count is %d, expected at least %d.", name, gotCount, expectedCount)
+			log.Warnf("reconcileCreatedStickerSet: found existing set:%s, but sticker count is %d, expected at least %d.", name, gotCount, expectedCount)
 			return false
+		}
+		if isRetryableTelegramWriteError(err) {
+			log.Warnf("reconcileCreatedStickerSet: StickerSet lookup failed, retrying: %s", sanitizeErrorText(err))
 		}
 
 		if i < 4 {
@@ -454,7 +503,7 @@ func reconcileOccupiedBatchCreate(c tele.Context, createErr error, name string, 
 
 // Create sticker set with multiple StickerFile.
 // API 7.2 feature, consider it experimental.
-// If it failed, no retry, just return error and we try conventional way.
+// If it still fails after retry, return error and let caller try conventional way.
 func createStickerSetBatch(ctx context.Context, sfs []*StickerFile, c tele.Context, name string, title string, ssType string) error {
 	var inputs []tele.InputSticker
 	log.Debugln("createStickerSetBatch: attempting, batch creation:", name)
@@ -494,7 +543,31 @@ func createStickerSetBatch(ctx context.Context, sfs []*StickerFile, c tele.Conte
 			return err
 		}
 	}
-	return c.Bot().CreateStickerSet(c.Recipient(), inputs, name, title, ssType)
+	var lastErr error
+	for i := 0; i < telegramStickerAPIAttempts; i++ {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		err := c.Bot().CreateStickerSet(c.Recipient(), inputs, name, title, ssType)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryableTelegramWriteError(err) {
+			return err
+		}
+		if i == telegramStickerAPIAttempts-1 {
+			break
+		}
+		sleepTime := telegramStickerRetryDelay(i)
+		log.Warnf("createStickerSetBatch: retryable Telegram error, sleeping %s (attempt %d/%d): %s", sleepTime, i+1, telegramStickerAPIAttempts, sanitizeErrorText(err))
+		if err := sleepWithContext(ctx, sleepTime); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("createStickerSetBatch: exceeded retry limit: %w", lastErr)
 }
 
 // Commit single sticker, retry happens inside this function.
@@ -709,7 +782,7 @@ func appendMedia(c tele.Context) error {
 				return errors.New("source sticker disappeared during conversion")
 			}
 			log.Warnln("Failed converting one user sticker", err)
-			c.Send("Failed converting one user sticker:" + err.Error())
+			c.Send("Failed converting one user sticker:" + sanitizeErrorText(err))
 			continue
 		}
 		sfs = append(sfs, &StickerFile{

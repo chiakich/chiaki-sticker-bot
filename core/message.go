@@ -550,8 +550,7 @@ func sendFatalError(err error, c tele.Context) {
 	}
 	var errMsg string
 	if err != nil {
-		errMsg = err.Error()
-		errMsg = strings.ReplaceAll(errMsg, msbconf.BotToken, "***")
+		errMsg = sanitizeErrorText(err)
 		errMsg = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(errMsg)
 	}
 
@@ -928,7 +927,7 @@ Failed to add one sticker.
 一張貼圖添加失敗
 Index: %d
 Error: %s
-`, pos, err.Error()))
+`, pos, sanitizeErrorText(err)))
 }
 
 func sendStickerCompressionFailed(c tele.Context, err error) error {
@@ -941,8 +940,7 @@ func sendStickerCompressionFailed(c tele.Context, err error) error {
 func stickerCompressionFailedMessage(err error) string {
 	reason := ""
 	if err != nil {
-		reason = err.Error()
-		reason = strings.ReplaceAll(reason, msbconf.BotToken, "***")
+		reason = sanitizeErrorText(err)
 	}
 	return "This sticker is too large or too complex to fit Telegram's video sticker limit, even after reducing bitrate and shortening the animation.\n" +
 		"這張貼圖太大或動畫太複雜；即使降低 bitrate 並縮短秒數後，仍無法壓到 Telegram 影片貼圖限制內。\n\n" +

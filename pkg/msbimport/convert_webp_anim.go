@@ -176,6 +176,17 @@ func webpToWebmViaPipeOnceContext(ctx context.Context, f string, pathOut string,
 }
 
 func webpToWebmViaPipeOnceWithMaxDurationContext(ctx context.Context, f string, pathOut string, scale string, fps float64, rc webmRateControl, maxDuration string) error {
+	err := webpToWebmViaPipeOnceWithMaxDurationAttempt(ctx, f, pathOut, scale, fps, rc, maxDuration, false)
+	if err == nil || !processWasKilled(err) || ctxErr(ctx) != nil || sameStringSlice(imageMagickResourceArgs(), imageMagickOOMResourceArgs()) {
+		return err
+	}
+
+	log.Warnln("webpToWebmViaPipeOnce: process killed, retrying with lower ImageMagick resource limits")
+	os.Remove(pathOut)
+	return webpToWebmViaPipeOnceWithMaxDurationAttempt(ctx, f, pathOut, scale, fps, rc, maxDuration, true)
+}
+
+func webpToWebmViaPipeOnceWithMaxDurationAttempt(ctx context.Context, f string, pathOut string, scale string, fps float64, rc webmRateControl, maxDuration string, lowMemoryImageMagick bool) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -197,9 +208,7 @@ func webpToWebmViaPipeOnceWithMaxDurationContext(ctx context.Context, f string, 
 	}
 	ffArgs = append(ffArgs, "-to", maxDuration, "-an", "-y", pathOut)
 
-	imArgs := append([]string{}, CONVERT_ARGS...)
-	imArgs = append(imArgs, imageMagickResourceArgs()...)
-	imArgs = append(imArgs, "WEBP:"+f, "-coalesce", "png:-")
+	imArgs := imageMagickConvertArgs(lowMemoryImageMagick, "WEBP:"+f, "-coalesce", "png:-")
 
 	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
 	defer cancel()
@@ -239,6 +248,12 @@ func webpToWebmViaPipeOnceWithMaxDurationContext(ctx context.Context, f string, 
 		log.Warnln("webpToWebmViaPipeOnce ERROR ffmpeg:", ffOut.String())
 		if runCtx.Err() != nil {
 			return runCtx.Err()
+		}
+		if processWasKilled(ffErr) {
+			return ffErr
+		}
+		if processWasKilled(imErr) {
+			return imErr
 		}
 		if ffErr != nil {
 			return ffErr
@@ -283,10 +298,8 @@ func webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx context.Context, f str
 		scale = "100:100:force_original_aspect_ratio=decrease"
 	}
 
-	imArgs := append([]string{}, CONVERT_ARGS...)
-	imArgs = append(imArgs, imageMagickResourceArgs()...)
-	imArgs = append(imArgs, "WEBP:"+f, "-coalesce", "-resize", size, framePattern)
-	imOut, err := exec.CommandContext(ctx, CONVERT_BIN, imArgs...).CombinedOutput()
+	imArgs := []string{"WEBP:" + f, "-coalesce", "-resize", size, framePattern}
+	imOut, err := runImageMagickConvertWithOOMRetry(ctx, imageMagickTimeout, imArgs...)
 	if err != nil {
 		if ctx.Err() != nil {
 			return pathOut, ctx.Err()

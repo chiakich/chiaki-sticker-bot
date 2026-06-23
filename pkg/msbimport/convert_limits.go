@@ -2,12 +2,17 @@ package msbimport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Hard ceiling for a single ffmpeg invocation. With a pool size of 1 a hung
@@ -33,6 +38,13 @@ const telegramVideoSafeDurationArg = "00:00:02.800"
 // getting CPU on the shared single-core VM. `nice` exec-replaces itself with the
 // target binary (same PID), so CommandContext timeouts still reach ffmpeg.
 const niceLevel = "19"
+
+const (
+	defaultImageMagickMemoryLimit    = "64MiB"
+	defaultImageMagickMapLimit       = "128MiB"
+	defaultImageMagickOOMMemoryLimit = "32MiB"
+	defaultImageMagickOOMMapLimit    = "64MiB"
+)
 
 // heavyConverterSemaphore serializes ffmpeg and rlottie (TGS→GIF) invocations
 // against each other. Both are memory-heavy on the 256MB Fly VM, so running them
@@ -104,12 +116,28 @@ func acquireFFmpegSlot() func() {
 func imageMagickResourceArgs() []string {
 	memoryLimit := os.Getenv("MSB_IM_MEMORY_LIMIT")
 	if memoryLimit == "" {
-		memoryLimit = "64MiB"
+		memoryLimit = defaultImageMagickMemoryLimit
 	}
 	mapLimit := os.Getenv("MSB_IM_MAP_LIMIT")
 	if mapLimit == "" {
-		mapLimit = "128MiB"
+		mapLimit = defaultImageMagickMapLimit
 	}
+	return imageMagickResourceArgsFromLimits(memoryLimit, mapLimit)
+}
+
+func imageMagickOOMResourceArgs() []string {
+	memoryLimit := os.Getenv("MSB_IM_OOM_MEMORY_LIMIT")
+	if memoryLimit == "" {
+		memoryLimit = defaultImageMagickOOMMemoryLimit
+	}
+	mapLimit := os.Getenv("MSB_IM_OOM_MAP_LIMIT")
+	if mapLimit == "" {
+		mapLimit = defaultImageMagickOOMMapLimit
+	}
+	return imageMagickResourceArgsFromLimits(memoryLimit, mapLimit)
+}
+
+func imageMagickResourceArgsFromLimits(memoryLimit string, mapLimit string) []string {
 	args := []string{}
 	if memoryLimit != "0" {
 		args = append(args, "-limit", "memory", memoryLimit)
@@ -118,4 +146,64 @@ func imageMagickResourceArgs() []string {
 		args = append(args, "-limit", "map", mapLimit)
 	}
 	return args
+}
+
+func imageMagickConvertArgs(lowMemory bool, args ...string) []string {
+	fullArgs := append([]string{}, CONVERT_ARGS...)
+	if lowMemory {
+		fullArgs = append(fullArgs, imageMagickOOMResourceArgs()...)
+	} else {
+		fullArgs = append(fullArgs, imageMagickResourceArgs()...)
+	}
+	fullArgs = append(fullArgs, args...)
+	return fullArgs
+}
+
+func runImageMagickConvertWithOOMRetry(ctx context.Context, timeout time.Duration, args ...string) ([]byte, error) {
+	out, err := runImageMagickConvert(ctx, timeout, false, args...)
+	if err == nil || !processWasKilled(err) || ctxErr(ctx) != nil || sameStringSlice(imageMagickResourceArgs(), imageMagickOOMResourceArgs()) {
+		return out, err
+	}
+
+	log.Warnf("ImageMagick was killed, retrying with lower resource limits: %s", strings.Join(imageMagickOOMResourceArgs(), " "))
+	return runImageMagickConvert(ctx, timeout, true, args...)
+}
+
+func runImageMagickConvert(ctx context.Context, timeout time.Duration, lowMemory bool, args ...string) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	runCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+
+	out, err := exec.CommandContext(runCtx, CONVERT_BIN, imageMagickConvertArgs(lowMemory, args...)...).CombinedOutput()
+	if err != nil && runCtx.Err() != nil {
+		return out, runCtx.Err()
+	}
+	return out, err
+}
+
+func processWasKilled(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGKILL
+}
+
+func ctxErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Err()
+}
+
+func sameStringSlice(a []string, b []string) bool {
+	return strings.Join(a, "\x00") == strings.Join(b, "\x00")
 }

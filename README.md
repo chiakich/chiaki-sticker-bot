@@ -66,7 +66,11 @@ The built-in defaults are:
 * `MSB_FFMPEG_CONCURRENCY` — maximum number of ffmpeg processes running at once. Default: `1`.
 * `MSB_IM_MEMORY_LIMIT` — ImageMagick memory limit for animated conversion paths. Default: `64MiB`. Set to `0` to disable.
 * `MSB_IM_MAP_LIMIT` — ImageMagick memory-map limit for animated conversion paths. Default: `128MiB`. Set to `0` to disable.
+* `MSB_IM_OOM_MEMORY_LIMIT` — lower ImageMagick memory limit used for one retry after ImageMagick or a paired pipe conversion is killed. Default: `32MiB`. Set to `0` to disable.
+* `MSB_IM_OOM_MAP_LIMIT` — lower ImageMagick memory-map limit used for that OOM retry. Default: `64MiB`. Set to `0` to disable.
 * `MSB_KAKAO_FAST_PIPE` — set to `1` to use the faster one-pass Kakao animated WebP pipe path. Default is off; the default two-pass frame-sequence path is slower but gives better motion quality under Telegram's 255KiB video sticker limit.
+
+The checked-in Fly config pins `MSB_IM_MEMORY_LIMIT=32MiB` and `MSB_IM_MAP_LIMIT=64MiB` on the 256MB VM, with a one-shot OOM retry at `24MiB` / `48MiB`.
 
 
 ### Optional: Enable database (for /search and usage tracking)

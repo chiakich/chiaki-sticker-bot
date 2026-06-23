@@ -8,6 +8,12 @@ primary_region = 'sin'
 
 [build]
 
+[env]
+  MSB_IM_MEMORY_LIMIT = "32MiB"
+  MSB_IM_MAP_LIMIT = "64MiB"
+  MSB_IM_OOM_MEMORY_LIMIT = "24MiB"
+  MSB_IM_OOM_MAP_LIMIT = "48MiB"
+
 [deploy]
   strategy = "bluegreen"
 

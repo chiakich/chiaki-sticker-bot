@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -21,10 +20,7 @@ func IMToWebpTGStaticContext(ctx context.Context, f string, isCustomEmoji bool) 
 		ctx = context.Background()
 	}
 	pathOut := f + ".webp"
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
-	args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos")
+	args := []string{f + "[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos"}
 	if isCustomEmoji {
 		args = append(args, "-resize", "100x100", "-gravity", "center", "-extent", "100x100")
 	} else {
@@ -32,14 +28,8 @@ func IMToWebpTGStaticContext(ctx context.Context, f string, isCustomEmoji bool) 
 	}
 	args = append(args, "-define", "webp:lossless=true", pathOut)
 
-	runCtx, cancel := context.WithTimeout(ctx, imageMagickTimeout)
-	out, err := exec.CommandContext(runCtx, bin, args...).CombinedOutput()
-	ctxErr := runCtx.Err()
-	cancel()
+	out, err := runImageMagickConvertWithOOMRetry(ctx, imageMagickTimeout, args...)
 	if err != nil {
-		if ctxErr != nil {
-			return "", ctxErr
-		}
 		log.Warnln("IMToWebpTGRegular ERROR:", string(out))
 		return "", err
 	}
@@ -51,17 +41,9 @@ func IMToWebpTGStaticContext(ctx context.Context, f string, isCustomEmoji bool) 
 
 	// 100x100 should never exceed 255KIB, no need for extra check.
 	if st.Size() > 255*KiB {
-		args := append([]string{}, CONVERT_ARGS...)
-		args = append(args, imageMagickResourceArgs()...)
-		args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos", "-resize", "512x512", pathOut)
-		runCtx, cancel := context.WithTimeout(ctx, imageMagickTimeout)
-		out, err := exec.CommandContext(runCtx, bin, args...).CombinedOutput()
-		ctxErr := runCtx.Err()
-		cancel()
+		args := []string{f + "[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos", "-resize", "512x512", pathOut}
+		out, err := runImageMagickConvertWithOOMRetry(ctx, imageMagickTimeout, args...)
 		if err != nil {
-			if ctxErr != nil {
-				return "", ctxErr
-			}
 			log.Warnln("IMToWebpTGRegular fallback ERROR:", string(out))
 			return "", err
 		}
@@ -73,18 +55,16 @@ func IMToWebpTGStaticContext(ctx context.Context, f string, isCustomEmoji bool) 
 // Convert image to static Webp for Whatsapp, size limit is 100KiB.
 func IMToWebpWA(f string) error {
 	pathOut := f
-	bin := CONVERT_BIN
 	qualities := []string{"75", "50"}
 	for _, q := range qualities {
-		args := append([]string{}, CONVERT_ARGS...)
-		args = append(args, imageMagickResourceArgs()...)
-		args = append(args,
-			f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos",
-			"-define", "webp:quality="+q,
+		args := []string{
+			f + "[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos",
+			"-define", "webp:quality=" + q,
 			"-resize", "512x512", "-gravity", "center", "-extent", "512x512",
-			pathOut)
+			pathOut,
+		}
 
-		out, err := commandOutputWithTimeout(bin, args...)
+		out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 		if err != nil {
 			log.Warnln("imToWebp ERROR:", string(out))
 			return err
@@ -104,12 +84,9 @@ func IMToWebpWA(f string) error {
 
 func IMToPng(f string) (string, error) {
 	pathOut := f + ".png"
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
-	args = append(args, f, pathOut)
+	args := []string{f, pathOut}
 
-	out, err := commandOutputWithTimeout(bin, args...)
+	out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 	if err != nil {
 		log.Warnln("imToPng ERROR:", string(out))
 		return "", err
@@ -120,12 +97,9 @@ func IMToPng(f string) (string, error) {
 // Replaces .webm ext to .webp
 func IMToAnimatedWebpLQ(f string) error {
 	pathOut := strings.ReplaceAll(f, ".webm", ".webp")
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
-	args = append(args, "-resize", "128x128", f, pathOut)
+	args := []string{"-resize", "128x128", f, pathOut}
 
-	out, err := commandOutputWithTimeout(bin, args...)
+	out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 	if err != nil {
 		log.Warnln("imToWebp ERROR:", string(out))
 		return err

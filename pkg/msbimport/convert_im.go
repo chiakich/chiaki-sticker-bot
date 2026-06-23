@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -14,13 +15,10 @@ import (
 // APNG (RGBA), making it more suitable for memory-constrained environments.
 func IMToGif(f string) (string, error) {
 	pathOut := f + ".gif"
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
 	// -coalesce ensures proper frame disposal before palette reduction.
-	args = append(args, "WEBP:"+f, "-coalesce", pathOut)
+	args := []string{"WEBP:" + f, "-coalesce", pathOut}
 
-	out, err := commandOutputWithTimeout(bin, args...)
+	out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 	if err != nil {
 		log.Warnln("IMToGif ERROR:", string(out))
 		return "", err
@@ -36,13 +34,10 @@ func IMToGif(f string) (string, error) {
 
 func IMToApng(f string) (string, error) {
 	pathOut := f + ".apng"
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
 	// Use "WEBP:" prefix so ImageMagick detects the format even without a file extension.
-	args = append(args, "WEBP:"+f, pathOut)
+	args := []string{"WEBP:" + f, pathOut}
 
-	out, err := commandOutputWithTimeout(bin, args...)
+	out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 	if err != nil {
 		log.Warnln("imToApng ERROR:", string(out))
 		return "", err
@@ -109,14 +104,13 @@ func isAnimatedWebp(f string) bool {
 }
 
 func IMStackToWebp(base string, overlay string) (string, error) {
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
 	fOut := base + ".composite.webp"
 
-	args = append(args, base, overlay, "-background", "none", "-filter", "Lanczos", "-resize", "512x512", "-composite",
-		"-define", "webp:lossless=true", fOut)
-	out, err := commandOutputWithTimeout(bin, args...)
+	args := []string{
+		base, overlay, "-background", "none", "-filter", "Lanczos", "-resize", "512x512", "-composite",
+		"-define", "webp:lossless=true", fOut,
+	}
+	out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 	if err != nil {
 		log.Errorln("IM stack ERROR!", string(out))
 		return "", err
@@ -136,16 +130,14 @@ func IMToPNGThumb(f string) error {
 		f = tempThumb
 	}
 
-	bin := CONVERT_BIN
-	args := append([]string{}, CONVERT_ARGS...)
-	args = append(args, imageMagickResourceArgs()...)
-	args = append(args,
-		f+"[0]", "-background", "none", "-alpha", "on",
+	args := []string{
+		f + "[0]", "-background", "none", "-alpha", "on",
 		"-resize", "96x96",
 		"-gravity", "center", "-extent", "96x96",
-		pathOut)
+		pathOut,
+	}
 
-	out, err := commandOutputWithTimeout(bin, args...)
+	out, err := runImageMagickConvertWithOOMRetry(context.Background(), convertCommandTimeout(), args...)
 	if err != nil {
 		log.Warnln("imToPng ERROR:", string(out))
 		return err

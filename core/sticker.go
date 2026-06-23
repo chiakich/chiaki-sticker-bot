@@ -24,7 +24,9 @@ var errNoStickerAvailable = errors.New("no sticker available")
 func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	ud := udFromCtx(c)
 	pText, teleMsg, _ := sendProcessStarted(ud, c, "Waiting...")
-	ud.wg.Wait()
+	if err := waitImportPreparation(ud, pText, teleMsg, c); err != nil {
+		return err
+	}
 	if err := sessionContextErr(ud); err != nil {
 		return err
 	}

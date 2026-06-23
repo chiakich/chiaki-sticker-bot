@@ -1,7 +1,6 @@
 package msbimport
 
 import (
-	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -14,26 +13,26 @@ func mediaDurationSeconds(f string) (float64, bool) {
 }
 
 func ffprobeDurationSeconds(f string) (float64, bool) {
-	out, err := exec.Command(FFPROBE_BIN,
+	out, err := commandOutputWithTimeout(FFPROBE_BIN,
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-of", "default=nw=1:nk=1",
 		f,
-	).Output()
+	)
 	if err == nil {
 		if duration, ok := parsePositiveFloat(strings.TrimSpace(string(out))); ok {
 			return duration, true
 		}
 	}
 
-	out, err = exec.Command(FFPROBE_BIN,
+	out, err = commandOutputWithTimeout(FFPROBE_BIN,
 		"-v", "error",
 		"-count_packets",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=duration,nb_read_packets,nb_read_frames,avg_frame_rate,r_frame_rate",
 		"-of", "default=nw=1",
 		f,
-	).Output()
+	)
 	if err != nil {
 		return 0, false
 	}
@@ -68,9 +67,9 @@ func ffprobeDurationSeconds(f string) (float64, bool) {
 }
 
 func identifyDurationSeconds(f string) (float64, bool) {
-	out, err := exec.Command(IDENTIFY_BIN,
+	out, err := commandOutputWithTimeout(IDENTIFY_BIN,
 		append(IDENTIFY_ARGS, "-format", "%T\n", f)...,
-	).Output()
+	)
 	if err != nil || len(out) == 0 {
 		return 0, false
 	}

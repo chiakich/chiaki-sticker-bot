@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -225,7 +224,7 @@ func kakaoZipExtract(f string, ld *LineData) []string {
 		//PNG is not encrypted.
 		if filepath.Ext(f) != ".png" {
 			//This script decrypts the file in-place.
-			exec.Command("msb_kakao_decrypt.py", f).Run()
+			commandRunWithTimeout("msb_kakao_decrypt.py", f)
 		}
 	}
 	return files

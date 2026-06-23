@@ -111,6 +111,8 @@ type UserData struct {
 	progress         string
 	progressMsg      *tele.Message
 	lineData         *msbimport.LineData
+	importErr        error
+	importQueue      ImportQueueStatus
 	stickerData      *StickerData
 	webAppUser       *WebAppUser
 	webAppQID        string

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -235,7 +234,7 @@ func FFToGif(f string) (string, error) {
 		return "", err
 	}
 	//Optimize GIF produced by ffmpeg
-	exec.Command("gifsicle", "--batch", "-O2", "--lossy=60", pathOut).CombinedOutput()
+	commandOutputWithTimeout("gifsicle", "--batch", "-O2", "--lossy=60", pathOut)
 
 	return pathOut, err
 }
@@ -251,7 +250,7 @@ func FFToAnimatedWebpLQ(f string) error {
 		"-loop", "0", "-pix_fmt", "yuva420p",
 		"-an", "-y", pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnln("ffToAnimatedWebpWA ERROR:", string(out))
 		return err
@@ -319,7 +318,7 @@ func FFtoPNG(f string, pathOut string) error {
 	args = append(args, ffmpegQ...)
 	args = append(args, "-c:v", "libvpx-vp9", "-i", f, "-frames", "1", "-y", pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnf("fftoPNG ERROR:\n%s", string(out))
 		return err

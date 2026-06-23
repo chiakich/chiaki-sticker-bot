@@ -169,6 +169,18 @@ func isTransientNetworkError(err error) bool {
 	return false
 }
 
+func isTimeoutError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, syscall.ETIMEDOUT) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "timeout") || strings.Contains(errText, "deadline exceeded")
+}
+
 func onError(err error, c tele.Context) {
 	var apiErr *tele.Error
 	switch {
@@ -176,9 +188,8 @@ func onError(err error, c tele.Context) {
 		// Expected when a user cancels an in-flight import/conversion.
 		log.Debugln("Context canceled:", err)
 		return
-	case errors.Is(err, context.DeadlineExceeded):
-		log.Warnln("Context deadline exceeded:", err)
-		return
+	case isTimeoutError(err):
+		log.Warnln("Timeout error:", err)
 	case errors.As(err, &apiErr):
 		// Telegram API errors are user-facing (bad input, etc.), no stack trace needed.
 		log.Warnf("Telegram API error (code %d): %s", apiErr.Code, apiErr.Description)

@@ -625,9 +625,9 @@ func averageFPSFromDelayTicks(delays []float64) float64 {
 }
 
 func webpDelayTicks(f string) ([]float64, bool) {
-	out, err := exec.Command(IDENTIFY_BIN,
+	out, err := commandOutputWithTimeout(IDENTIFY_BIN,
 		append(IDENTIFY_ARGS, "-format", "%T\n", "WEBP:"+f)...,
-	).Output()
+	)
 	if err != nil || len(out) == 0 {
 		return nil, false
 	}

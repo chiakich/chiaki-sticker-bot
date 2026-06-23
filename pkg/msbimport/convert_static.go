@@ -84,7 +84,7 @@ func IMToWebpWA(f string) error {
 			"-resize", "512x512", "-gravity", "center", "-extent", "512x512",
 			pathOut)
 
-		out, err := exec.Command(bin, args...).CombinedOutput()
+		out, err := commandOutputWithTimeout(bin, args...)
 		if err != nil {
 			log.Warnln("imToWebp ERROR:", string(out))
 			return err
@@ -109,7 +109,7 @@ func IMToPng(f string) (string, error) {
 	args = append(args, imageMagickResourceArgs()...)
 	args = append(args, f, pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnln("imToPng ERROR:", string(out))
 		return "", err
@@ -125,7 +125,7 @@ func IMToAnimatedWebpLQ(f string) error {
 	args = append(args, imageMagickResourceArgs()...)
 	args = append(args, "-resize", "128x128", f, pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnln("imToWebp ERROR:", string(out))
 		return err

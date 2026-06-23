@@ -1,7 +1,6 @@
 package msbimport
 
 import (
-	"os/exec"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -15,12 +14,12 @@ func RlottieToGIF(f string) (string, error) {
 	bin := "msb_rlottie.py"
 	fOut := strings.ReplaceAll(f, ".tgs", ".gif")
 	args := []string{f, fOut}
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Errorln("lottieToGIF ERROR!", string(out))
 		return "", err
 	}
 	//Optimize GIF
-	exec.Command("gifsicle", "--batch", "-O2", "--lossy=60", fOut).CombinedOutput()
+	commandOutputWithTimeout("gifsicle", "--batch", "-O2", "--lossy=60", fOut)
 	return fOut, nil
 }

@@ -129,11 +129,13 @@ func fDownload(ctx context.Context, link string, savePath string) error {
 	runCtx, cancel := context.WithTimeout(ctx, archiveDownloadTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, "curl",
-		"-L",
 		"--fail",
+		"--location",
 		"--connect-timeout", "10",
 		"--max-time", fmt.Sprintf("%.0f", archiveDownloadTimeout.Seconds()),
-		"-o", savePath,
+		"--retry", "2",
+		"--retry-delay", "1",
+		"--output", savePath,
 		link,
 	)
 	out, err := cmd.CombinedOutput()
@@ -141,7 +143,7 @@ func fDownload(ctx context.Context, link string, savePath string) error {
 		if runCtx.Err() != nil {
 			return runCtx.Err()
 		}
-		return fmt.Errorf("fDownload: %w: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("download failed for %s: %w: %s", link, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -151,7 +153,7 @@ func fExtract(f string) string {
 	os.MkdirAll(targetDir, 0755)
 	log.Debugln("Extracting to :", targetDir)
 
-	out, err := exec.Command(BSDTAR_BIN, "-xvf", f, "-C", targetDir).CombinedOutput()
+	out, err := commandOutputWithTimeout(BSDTAR_BIN, "-xvf", f, "-C", targetDir)
 	if err != nil {
 		log.Errorln("Error extracting:", string(out))
 		return ""
@@ -170,7 +172,7 @@ func ArchiveExtract(f string) []string {
 	targetDir := filepath.Join(path.Dir(f), SecHex(4))
 	os.MkdirAll(targetDir, 0755)
 
-	err := exec.Command(BSDTAR_BIN, "-xvf", f, "-C", targetDir).Run()
+	err := commandRunWithTimeout(BSDTAR_BIN, "-xvf", f, "-C", targetDir)
 	if err != nil {
 		log.Warnln("ArchiveExtract error:", err)
 		return []string{}
@@ -254,7 +256,7 @@ func FCompress(f string, flist []string) error {
 	args = append(args, flist...)
 
 	log.Debugf("Compressing strip-comps:%s to file:%s for these files:%v", comps, f, flist)
-	out, err := exec.Command(BSDTAR_BIN, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(BSDTAR_BIN, args...)
 	log.Debugln(string(out))
 	if err != nil {
 		log.Error("Compress error!")

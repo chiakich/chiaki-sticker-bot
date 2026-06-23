@@ -2,6 +2,7 @@ package msbimport
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -57,6 +58,31 @@ func niceCommand(bin string, args ...string) *exec.Cmd {
 
 func niceCommandContext(ctx context.Context, bin string, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, "nice", append([]string{"-n", niceLevel, bin}, args...)...)
+}
+
+func commandOutputWithTimeout(bin string, args ...string) ([]byte, error) {
+	timeout := convertCommandTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput()
+	if err != nil && ctx.Err() != nil {
+		return out, fmt.Errorf("%w: %s timed out after %s", ctx.Err(), bin, timeout)
+	}
+	return out, err
+}
+
+func commandRunWithTimeout(bin string, args ...string) error {
+	_, err := commandOutputWithTimeout(bin, args...)
+	return err
+}
+
+func convertCommandTimeout() time.Duration {
+	timeout := ffmpegTimeout
+	if value, err := strconv.Atoi(os.Getenv("MSB_CONVERT_TIMEOUT_SECONDS")); err == nil && value > 0 {
+		timeout = time.Duration(value) * time.Second
+	}
+	return timeout
 }
 
 func acquireLottieGIFSlot() func() {

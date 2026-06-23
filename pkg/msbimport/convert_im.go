@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -21,7 +20,7 @@ func IMToGif(f string) (string, error) {
 	// -coalesce ensures proper frame disposal before palette reduction.
 	args = append(args, "WEBP:"+f, "-coalesce", pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnln("IMToGif ERROR:", string(out))
 		return "", err
@@ -43,7 +42,7 @@ func IMToApng(f string) (string, error) {
 	// Use "WEBP:" prefix so ImageMagick detects the format even without a file extension.
 	args = append(args, "WEBP:"+f, pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnln("imToApng ERROR:", string(out))
 		return "", err
@@ -62,7 +61,7 @@ func ConverMediaToTGStickerSmart(f string, isCustomEmoji bool) (string, error) {
 	// Count frames by running identify without -format and counting output lines.
 	// This is more reliable than -format "%n" for animated WebP, which older
 	// ImageMagick versions may misreport as 1 frame.
-	identifyOut, err := exec.Command(IDENTIFY_BIN, append(IDENTIFY_ARGS, f)...).CombinedOutput()
+	identifyOut, err := commandOutputWithTimeout(IDENTIFY_BIN, append(IDENTIFY_ARGS, f)...)
 	if err != nil {
 		log.Warnln("ConverMediaToTGStickerSmart identify ERROR:", string(identifyOut))
 		return "", err
@@ -117,7 +116,7 @@ func IMStackToWebp(base string, overlay string) (string, error) {
 
 	args = append(args, base, overlay, "-background", "none", "-filter", "Lanczos", "-resize", "512x512", "-composite",
 		"-define", "webp:lossless=true", fOut)
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Errorln("IM stack ERROR!", string(out))
 		return "", err
@@ -146,7 +145,7 @@ func IMToPNGThumb(f string) error {
 		"-gravity", "center", "-extent", "96x96",
 		pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := commandOutputWithTimeout(bin, args...)
 	if err != nil {
 		log.Warnln("imToPng ERROR:", string(out))
 		return err

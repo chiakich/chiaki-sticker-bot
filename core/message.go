@@ -485,13 +485,23 @@ func sendAskEmojiAssign(c tele.Context) error {
 		log.Errorf("Sticker data is nil for emoji assignment at pos %d", sd.pos)
 		return errNoStickerAvailable
 	}
-	sf.wg.Wait()
-	if err := sessionContextErr(ud); err != nil {
-		return err
-	}
 	total := sd.lAmount
 	if total == 0 {
 		total = len(sd.stickers)
+	}
+	waitedForPreview := false
+	if sf.fileID == "" && sf.oPath == "" {
+		sf.wg.Wait()
+		waitedForPreview = true
+	}
+	if err := sessionContextErr(ud); err != nil {
+		return err
+	}
+	if waitedForPreview && sf.cError != nil {
+		return sf.cError
+	}
+	if sf.fileID == "" && sf.oPath == "" {
+		return errors.New("sticker preview file is not ready")
 	}
 	caption := fmt.Sprintf(`
 Send emoji(s) representing this sticker.

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/star-39/moe-sticker-bot/pkg/msbimport"
@@ -188,21 +189,36 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 	workDir := filepath.Join(ud.workDir, ud.lineData.Id)
 	sendAskTitle_Import(c)
 	ud.wg.Add(1)
-	defer ud.wg.Done()
-	releaseImportSlot, err := acquireImportSlot(ud.ctx)
-	if err != nil {
+	prepDone := false
+	defer func() {
+		if !prepDone {
+			ud.wg.Done()
+		}
+	}()
+	setImportErr := func(err error) error {
+		ud.mu.Lock()
+		ud.importErr = err
+		ud.mu.Unlock()
 		return err
+	}
+	releaseImportSlot, err := acquireImportSlot(ud.ctx, func(status ImportQueueStatus) {
+		ud.mu.Lock()
+		ud.importQueue = status
+		ud.mu.Unlock()
+	})
+	if err != nil {
+		return setImportErr(err)
 	}
 	defer releaseImportSlot()
 	err = msbimport.PrepareImportStickers(ud.ctx, ud.lineData, workDir, true, wantEmoji)
 	if err != nil {
 		if errors.Is(err, msbimport.ErrNoStickerFound) {
-			return fmt.Errorf("%w: %v", errNoStickerAvailable, err)
+			return setImportErr(fmt.Errorf("%w: %v", errNoStickerAvailable, err))
 		}
-		return err
+		return setImportErr(err)
 	}
 	if len(ud.lineData.Files) == 0 {
-		return fmt.Errorf("%w: import completed without prepared sticker files", errNoStickerAvailable)
+		return setImportErr(fmt.Errorf("%w: import completed without prepared sticker files", errNoStickerAvailable))
 	}
 	ud.stickerData.lAmount = ud.lineData.Amount
 	ud.stickerData.isVideo = ud.lineData.IsAnimated
@@ -215,26 +231,31 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 
 	//After PrepareImportStickers returns, individual LineFile might not be ready yet.
 	//When transfering data to ud.stickerData.stickers, make sure to transfer finished data only.
-	for range ud.lineData.Files {
-		sf := &StickerFile{}
+	for _, lf := range ud.lineData.Files {
+		sf := &StickerFile{
+			oPath:            lf.OriginalFile,
+			cPath:            lf.ConvertedFile,
+			conversionStatus: lf.Status,
+		}
 		sf.wg.Add(1)
 		ud.stickerData.stickers = append(ud.stickerData.stickers, sf)
-	}
-	for i, lf := range ud.lineData.Files {
-		ud.stickerData.stickers[i].conversionStatus = lf.Status
-		lf.Wg.Wait()
-		if lf.CError != nil {
-			// Mark remaining stickers done so no goroutine blocks, then abort.
-			for j := i; j < len(ud.stickerData.stickers); j++ {
-				ud.stickerData.stickers[j].cError = lf.CError
-				ud.stickerData.stickers[j].wg.Done()
+
+		ud.activeWg.Add(1)
+		go func(sf *StickerFile, lf *msbimport.LineFile) {
+			defer ud.activeWg.Done()
+			lf.Wg.Wait()
+			if lf.CError != nil {
+				sf.cError = lf.CError
+			} else {
+				sf.oPath = lf.OriginalFile
+				sf.cPath = lf.ConvertedFile
 			}
-			return lf.CError
-		}
-		ud.stickerData.stickers[i].wg.Done()
-		ud.stickerData.stickers[i].oPath = lf.OriginalFile
-		ud.stickerData.stickers[i].cPath = lf.ConvertedFile
+			sf.wg.Done()
+		}(sf, lf)
 	}
+
+	prepDone = true
+	ud.wg.Done()
 	return nil
 }
 
@@ -555,14 +576,10 @@ func waitEmojiChoice(c tele.Context) error {
 			}
 			defer ud.endSessionWork()
 
-			sendProcessStarted(ud, c, "preparing...")
+			pText, teleMsg, _ := sendProcessStarted(ud, c, "preparing...")
 			setState(c, ST_PROCESSING)
-			ud.wg.Wait()
-			if err := sessionContextErr(ud); err != nil {
+			if err := waitImportPreparation(ud, pText, teleMsg, c); err != nil {
 				return err
-			}
-			if len(ud.stickerData.stickers) == 0 {
-				return errNoStickerAvailable
 			}
 			ud.commitChans = make([]chan bool, len(ud.stickerData.stickers))
 			for i := range ud.stickerData.stickers {
@@ -603,6 +620,60 @@ func waitEmojiChoice(c tele.Context) error {
 	}
 	endSession(c)
 	return nil
+}
+
+func waitImportPreparation(ud *UserData, pText string, teleMsg *tele.Message, c tele.Context) error {
+	done := make(chan struct{})
+	go func() {
+		ud.wg.Wait()
+		close(done)
+	}()
+
+	firstNotice := time.NewTimer(10 * time.Second)
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer firstNotice.Stop()
+	defer heartbeat.Stop()
+
+	editWaiting := func() {
+		editProgressMsg(0, 0, importPreparationProgressText(ud), pText, teleMsg, c)
+	}
+	editWaiting()
+
+	for {
+		select {
+		case <-done:
+			ud.mu.Lock()
+			importErr := ud.importErr
+			ud.mu.Unlock()
+			if importErr != nil {
+				return importErr
+			}
+			if len(ud.stickerData.stickers) == 0 {
+				return errNoStickerAvailable
+			}
+			return nil
+		case <-firstNotice.C:
+			editWaiting()
+		case <-heartbeat.C:
+			editWaiting()
+		case <-ud.ctx.Done():
+			return ud.ctx.Err()
+		}
+	}
+}
+
+func importPreparationProgressText(ud *UserData) string {
+	ud.mu.Lock()
+	status := ud.importQueue
+	ud.mu.Unlock()
+
+	if status.Position > 0 {
+		return fmt.Sprintf("<code>Waiting in import queue / 匯入排隊中...\n       position %d of %d\n       active %d of %d</code>", status.Position, status.Waiting, status.Active, status.Capacity)
+	}
+	if status.Capacity > 0 {
+		return fmt.Sprintf("<code>Preparing import / 準備匯入中...\n       active %d of %d</code>", status.Active, status.Capacity)
+	}
+	return "<code>Preparing import / 準備匯入中...</code>"
 }
 
 func waitSEmojiAssign(c tele.Context) error {

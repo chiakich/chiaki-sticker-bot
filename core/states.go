@@ -667,11 +667,11 @@ func importPreparationProgressText(ud *UserData) string {
 	status := ud.importQueue
 	ud.mu.Unlock()
 
+	// Only show queue position while actually waiting behind other imports.
+	// "active N of N" here is internal slot-utilization, not progress — it reads
+	// like a stuck progress bar to users, so the active case shows no counter.
 	if status.Position > 0 {
-		return fmt.Sprintf("<code>Waiting in import queue / 匯入排隊中...\n       position %d of %d\n       active %d of %d</code>", status.Position, status.Waiting, status.Active, status.Capacity)
-	}
-	if status.Capacity > 0 {
-		return fmt.Sprintf("<code>Preparing import / 準備匯入中...\n       active %d of %d</code>", status.Active, status.Capacity)
+		return fmt.Sprintf("<code>Waiting in import queue / 匯入排隊中...\n       position %d of %d</code>", status.Position, status.Waiting)
 	}
 	return "<code>Preparing import / 準備匯入中...</code>"
 }

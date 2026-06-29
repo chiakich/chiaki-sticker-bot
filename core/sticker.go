@@ -205,9 +205,10 @@ func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEd
 		case <-done:
 			doneCount := index + 1
 			force := doneCount == total
-			if total <= 30 || shouldEditConversionMilestone(doneCount, total) {
-				edit(doneCount, "", force)
-			}
+			// Always attempt an update; edit() throttles to ~once per 3s, so this
+			// stays well under Telegram's edit rate limit while showing the true
+			// running count instead of coarse 25% jumps.
+			edit(doneCount, "", force)
 			return lastEdit
 		case <-firstNotice.C:
 			editStatus()
@@ -215,16 +216,6 @@ func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEd
 			editStatus()
 		}
 	}
-}
-
-func shouldEditConversionMilestone(done int, total int) bool {
-	if done == 1 || done == total {
-		return true
-	}
-	if total < 4 {
-		return false
-	}
-	return done%(total/4) == 0
 }
 
 func conversionProgressText(done int, total int, status string) string {

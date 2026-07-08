@@ -233,7 +233,10 @@ func webpToWebmViaPipeOnceWithMaxDurationAttempt(ctx context.Context, f string, 
 
 	imArgs := imageMagickConvertArgs(lowMemoryImageMagick, "WEBP:"+f, "-coalesce", "png:-")
 
-	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+	// Acquire the slot before starting the timeout so queue wait doesn't eat
+	// into the encode budget.
+	releaseFFmpeg := acquireFFmpegSlot()
+	runCtx, cancel := context.WithTimeout(ctx, convertCommandTimeout())
 	defer cancel()
 
 	imCmd := exec.CommandContext(runCtx, CONVERT_BIN, imArgs...)
@@ -247,7 +250,6 @@ func webpToWebmViaPipeOnceWithMaxDurationAttempt(ctx context.Context, f string, 
 	ffCmd.Stdin = pr
 	ffCmd.Stderr = &ffOut
 
-	releaseFFmpeg := acquireFFmpegSlot()
 	if err := imCmd.Start(); err != nil {
 		releaseFFmpeg()
 		return fmt.Errorf("webpToWebmViaPipeOnce: imCmd start: %w", err)
@@ -530,7 +532,7 @@ func encodeWebmFramesTwoPass(ctx context.Context, framePattern string, pathOut s
 
 	pass1Args := append([]string{}, baseArgs...)
 	pass1Args = append(pass1Args, "-pass", "1", "-passlogfile", passlog, "-f", "webm", "-y", os.DevNull)
-	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+	runCtx, cancel := context.WithTimeout(ctx, convertCommandTimeout())
 	out, err := niceLimitedCombinedOutput(runCtx, FFMPEG_BIN, pass1Args...)
 	runErr := runCtx.Err()
 	cancel()
@@ -543,7 +545,7 @@ func encodeWebmFramesTwoPass(ctx context.Context, framePattern string, pathOut s
 
 	pass2Args := append([]string{}, baseArgs...)
 	pass2Args = append(pass2Args, "-pass", "2", "-passlogfile", passlog, "-y", pathOut)
-	runCtx, cancel = context.WithTimeout(ctx, ffmpegTimeout)
+	runCtx, cancel = context.WithTimeout(ctx, convertCommandTimeout())
 	out, err = niceLimitedCombinedOutput(runCtx, FFMPEG_BIN, pass2Args...)
 	runErr = runCtx.Err()
 	cancel()

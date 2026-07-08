@@ -18,6 +18,10 @@ primary_region = 'sin'
   # `nice` alone can't prevent fly's platform-level throttling of the whole VM.
   # Lower this if replies still lag; raise it for faster (but greedier) encodes.
   MSB_CPU_LIMIT = "70"
+  # Per-attempt ceiling for heavy conversions (ffmpeg/ImageMagick). On this
+  # throttled shared-core VM a single VP9 encode can legitimately exceed the
+  # 120s default, which made every attempt time out and retry forever.
+  MSB_CONVERT_TIMEOUT_SECONDS = "300"
   MSB_IM_MEMORY_LIMIT = "32MiB"
   MSB_IM_MAP_LIMIT = "64MiB"
   MSB_IM_OOM_MEMORY_LIMIT = "24MiB"

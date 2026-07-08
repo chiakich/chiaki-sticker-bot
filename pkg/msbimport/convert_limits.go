@@ -240,15 +240,17 @@ func runImageMagickConvert(ctx context.Context, timeout time.Duration, lowMemory
 		ctx = context.Background()
 	}
 
+	// Acquire the slot before starting the timeout so queue wait doesn't eat
+	// into the conversion budget.
+	releaseSlot := acquireImageMagickSlot()
+	defer releaseSlot()
+
 	runCtx := ctx
 	cancel := func() {}
 	if timeout > 0 {
 		runCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
 	defer cancel()
-
-	releaseSlot := acquireImageMagickSlot()
-	defer releaseSlot()
 
 	out, err := exec.CommandContext(runCtx, CONVERT_BIN, imageMagickConvertArgs(lowMemory, args...)...).CombinedOutput()
 	if err != nil && runCtx.Err() != nil {

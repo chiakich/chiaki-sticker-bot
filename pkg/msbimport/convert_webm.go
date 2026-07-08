@@ -90,8 +90,10 @@ func FFToWebmTGVideoContextWithStatus(ctx context.Context, f string, isCustomEmo
 			}
 			args := append(baseargs, rcargs...)
 			args = append(args, []string{"-to", duration, "-an", "-y", pathOut}...)
-			runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+			// Acquire the slot before starting the timeout so queue wait
+			// doesn't eat into the encode budget.
 			releaseFFmpeg := acquireFFmpegSlot()
+			runCtx, cancel := context.WithTimeout(ctx, convertCommandTimeout())
 			out, err := niceLimitedCombinedOutput(runCtx, bin, args...)
 			releaseFFmpeg()
 			runErr := runCtx.Err()
@@ -171,9 +173,9 @@ func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (str
 		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
 		"-to", telegramVideoSafeDurationArg, "-r", "30", "-an", "-y", pathOut)
 
-	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
-	defer cancel()
 	releaseFFmpeg := acquireFFmpegSlot()
+	runCtx, cancel := context.WithTimeout(ctx, convertCommandTimeout())
+	defer cancel()
 	out, err := niceLimitedCombinedOutput(runCtx, bin, args...)
 	releaseFFmpeg()
 	if err != nil {
@@ -247,8 +249,8 @@ func ffToGifWithProfile(decoder []string, f string, pathOut string, palettePath 
 		"-vf", paletteFilter,
 		"-y", palettePath)
 
-	ctx1, cancel1 := context.WithTimeout(context.Background(), timeout)
 	releaseFFmpeg := acquireFFmpegSlot()
+	ctx1, cancel1 := context.WithTimeout(context.Background(), timeout)
 	out, err := niceLimitedCombinedOutput(ctx1, bin, args1...)
 	releaseFFmpeg()
 	runErr := ctx1.Err()
@@ -269,8 +271,8 @@ func ffToGifWithProfile(decoder []string, f string, pathOut string, palettePath 
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
 		"-y", pathOut)
 
-	ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 	releaseFFmpeg = acquireFFmpegSlot()
+	ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 	out, err = niceLimitedCombinedOutput(ctx2, bin, args2...)
 	releaseFFmpeg()
 	runErr = ctx2.Err()
@@ -332,8 +334,8 @@ func FFToAnimatedWebpWA(f string) error {
 			"-quality", quality, "-loop", "0", "-pix_fmt", "yuva420p",
 			"-an", "-y", pathOut)
 
-		runCtx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
 		releaseFFmpeg := acquireFFmpegSlot()
+		runCtx, cancel := context.WithTimeout(context.Background(), convertCommandTimeout())
 		out, err := niceLimitedCombinedOutput(runCtx, bin, args...)
 		releaseFFmpeg()
 		cancel()

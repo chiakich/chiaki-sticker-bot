@@ -194,10 +194,10 @@ func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEd
 		lastEdit = now
 	}
 
+	// Even with no per-sticker status, refresh the message so a slow first
+	// conversion doesn't leave the stale "Processing files" text on screen.
 	editStatus := func() {
-		if status := sf.conversionStatus.Message(); status != "" {
-			edit(index, status, true)
-		}
+		edit(index, sf.conversionStatus.Message(), true)
 	}
 
 	for {

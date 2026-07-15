@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/json"
@@ -97,35 +98,80 @@ func initHTTPServer() *http.Server {
 	return srv
 }
 
-// apiProxy streams a sticker file directly from Telegram CDN to the browser.
-// This avoids pre-downloading all stickers server-side, reducing memory usage.
+// proxyCacheEntry holds a fully-downloaded sticker file so it can be
+// re-served without re-fetching Telegram on every request.
+type proxyCacheEntry struct {
+	data        []byte
+	contentType string
+}
+
+var (
+	proxyCache   = make(map[string]*proxyCacheEntry)
+	proxyCacheMu sync.Mutex
+	// Crude cap: wipe the whole cache instead of building real LRU eviction.
+	proxyCacheMaxEntries = 500
+)
+
+// apiProxy serves a sticker file, downloading it from Telegram CDN on first
+// request and caching it in memory afterwards. It answers via http.ServeContent
+// so Range/If-Modified-Since requests are handled correctly — required for
+// <video> seeking/looping to work reliably (notably on Safari/WKWebView).
 func apiProxy(c *gin.Context) {
 	fileID := c.Query("fileID")
 	if fileID == "" {
 		c.String(http.StatusBadRequest, "no fileID")
 		return
 	}
-	file, err := b.FileByID(fileID)
+
+	entry, err := getProxyCacheEntry(fileID)
 	if err != nil {
-		log.Warnln("apiProxy: FileByID error:", err)
+		log.Warnln("apiProxy:", err)
 		c.String(http.StatusBadRequest, "bad fileID")
 		return
+	}
+
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.Header("Content-Type", entry.contentType)
+	http.ServeContent(c.Writer, c.Request, fileID, time.Time{}, bytes.NewReader(entry.data))
+}
+
+func getProxyCacheEntry(fileID string) (*proxyCacheEntry, error) {
+	proxyCacheMu.Lock()
+	entry, ok := proxyCache[fileID]
+	proxyCacheMu.Unlock()
+	if ok {
+		return entry, nil
+	}
+
+	file, err := b.FileByID(fileID)
+	if err != nil {
+		return nil, fmt.Errorf("FileByID error: %w", err)
 	}
 	downloadURL := tele.DefaultApiURL + "/file/bot" + msbconf.BotToken + "/" + file.FilePath
 	resp, err := http.Get(downloadURL)
 	if err != nil {
-		log.Warnln("apiProxy: download error:", err)
-		c.String(http.StatusInternalServerError, "download failed")
-		return
+		return nil, fmt.Errorf("download error: %w", err)
 	}
 	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body error: %w", err)
+	}
 
 	contentType := "image/webp"
 	if strings.HasSuffix(file.FilePath, ".webm") {
 		contentType = "video/webm"
 	}
-	c.Header("Cache-Control", "public, max-age=86400")
-	c.DataFromReader(http.StatusOK, resp.ContentLength, contentType, resp.Body, nil)
+	entry = &proxyCacheEntry{data: data, contentType: contentType}
+
+	proxyCacheMu.Lock()
+	if len(proxyCache) >= proxyCacheMaxEntries {
+		proxyCache = make(map[string]*proxyCacheEntry)
+	}
+	proxyCache[fileID] = entry
+	proxyCacheMu.Unlock()
+
+	return entry, nil
 }
 
 func apiExport(c *gin.Context) {

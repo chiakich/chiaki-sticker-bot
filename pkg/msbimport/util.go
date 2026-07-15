@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -228,13 +229,65 @@ func SecHex(n int) string {
 func ArchiveExtract(f string) []string {
 	targetDir := filepath.Join(path.Dir(f), SecHex(4))
 	os.MkdirAll(targetDir, 0755)
+	if strings.EqualFold(filepath.Ext(f), ".zip") {
+		if err := extractZIP(f, targetDir); err != nil {
+			log.Warnln("ArchiveExtract ZIP error:", err)
+			return []string{}
+		}
+		return LsFilesR(targetDir, []string{}, []string{})
+	}
 
-	err := commandRunWithTimeout(BSDTAR_BIN, "-xvf", f, "-C", targetDir)
+	out, err := commandOutputWithTimeout(BSDTAR_BIN, "-xvf", f, "-C", targetDir)
 	if err != nil {
-		log.Warnln("ArchiveExtract error:", err)
+		log.Warnf("ArchiveExtract error: %v: %s", err, strings.TrimSpace(string(out)))
 		return []string{}
 	}
 	return LsFilesR(targetDir, []string{}, []string{})
+}
+
+// extractZIP avoids bsdtar's locale-dependent filename conversion for ZIP
+// archives. archive/zip preserves the entry bytes as Go strings, allowing ZIPs
+// containing UTF-8 names without the language encoding flag to be extracted.
+func extractZIP(archivePath, targetDir string) error {
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	for _, entry := range reader.File {
+		name := filepath.Clean(entry.Name)
+		if name == "." || filepath.IsAbs(name) || strings.HasPrefix(name, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("unsafe ZIP entry path: %q", entry.Name)
+		}
+		outputPath := filepath.Join(targetDir, name)
+		if entry.FileInfo().IsDir() {
+			if err := os.MkdirAll(outputPath, 0755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			return err
+		}
+		input, err := entry.Open()
+		if err != nil {
+			return err
+		}
+		output, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, entry.Mode())
+		if err == nil {
+			_, err = io.Copy(output, input)
+			closeErr := output.Close()
+			if err == nil {
+				err = closeErr
+			}
+		}
+		input.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func LsFilesR(dir string, mustHave []string, mustNotHave []string) []string {

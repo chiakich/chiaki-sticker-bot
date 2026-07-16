@@ -6,11 +6,6 @@
     align-items: flex-end;
     justify-content: center;
     z-index: 1000;
-    /* Telegram's native MainButton floats over the bottom of the WebView
-       outside the DOM -- viewport height does not subtract its height, so
-       anything flush against bottom:0 renders underneath it and gets
-       visually clipped. Reserve space for it plus the iOS home-indicator
-       safe area. */
     box-sizing: border-box;
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
 }
@@ -18,13 +13,10 @@
 .EmojiPicker-Panel {
     width: 100%;
     max-width: 480px;
-    /* Fixed (not hug-content) so the panel doesn't jump size between
-       categories with different emoji counts -- the grid below absorbs the
-       difference by scrolling or leaving blank space. Also bounded by the
-       overlay's available space (viewport minus the MainButton/safe-area
-       reserve above), so it can never grow into the area that reserve is
-       protecting. */
-    height: min(80vh, calc(100vh - 64px - env(safe-area-inset-bottom, 0px)));
+    height: min(
+        80vh,
+        calc(var(--tg-viewport-stable-height, 100vh) - 64px - env(safe-area-inset-bottom, 0px))
+    );
     background: var(--tg-theme-bg-color, #ffffff);
     border-radius: 12px 12px 0 0;
     display: flex;

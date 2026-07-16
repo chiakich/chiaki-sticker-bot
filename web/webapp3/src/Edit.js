@@ -71,11 +71,6 @@ function Edit() {
             }
           });
       });
-    // Originally Android-only: expanding the webapp by swiping the content
-    // up might cause dnd-context to freeze and cannot be recovered, so we
-    // call expand() upfront to avoid that interaction path. Calling it
-    // unconditionally on iOS too since it settles the viewport at full
-    // height right away instead of the half-expanded state.
     window.Telegram.WebApp.expand()
   }, []) //useEffect
 

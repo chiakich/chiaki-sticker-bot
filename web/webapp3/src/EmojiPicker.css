@@ -7,9 +7,6 @@
     justify-content: center;
     z-index: 1000;
     box-sizing: border-box;
-    padding-bottom: calc(
-        var(--main-button-height, 56px) + var(--main-button-gap, 12px) + var(--main-button-gap, 12px) + env(safe-area-inset-bottom, 0px)
-    );
     animation: EmojiPickerOverlayIn 180ms ease-out both;
 }
 

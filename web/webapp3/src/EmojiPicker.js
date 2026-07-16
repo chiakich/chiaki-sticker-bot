@@ -87,6 +87,7 @@ export function EmojiPickerPopup({ surl, emoji, onSelect, onClear, onClose }) {
         </div>
         <div className="EmojiPicker-Preview">
           <img className="EmojiPicker-PreviewThumb" src={surl} alt="" />
+          <div>⇒</div>
           <div className="EmojiPicker-PreviewEmoji">{emoji || '尚未選擇 / None'}</div>
         </div>
         <div className="EmojiPicker-Grid" ref={gridRef}>

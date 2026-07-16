@@ -117,8 +117,7 @@ function Edit() {
                   id={item.id}
                   emoji={item.emoji}
                   onEmojiChange={setEmoji}
-                  surl={item.surl}
-                  is_video={item.is_video} />
+                  surl={item.surl} />
               ))
             }
           </StickerGrid>
@@ -130,7 +129,6 @@ function Edit() {
               id={activeId}
               surl={items[items.map(o => o.id).indexOf(activeId)].surl}
               emoji={items[items.map(o => o.id).indexOf(activeId)].emoji}
-              is_video={items[items.map(o => o.id).indexOf(activeId)].is_video}
             />
             : null}
         </DragOverlay>

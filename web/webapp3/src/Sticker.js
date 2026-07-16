@@ -1,43 +1,18 @@
-import React, { forwardRef, useEffect, useRef } from 'react';
+import React, { forwardRef } from 'react';
 // import axios from 'axios';
 import Img from "react-cool-img";
 import './StickerStyle.css'
 import loading_gif from './loading.gif'
 
 
-function usePlayWhenVisible(enabled) {
-  const ref = useRef(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!enabled || !el) {
-      return;
-    }
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        el.play().catch(() => { }); // Rejects if the element is detached mid-play.
-      } else {
-        el.pause();
-      }
-    }, { rootMargin: '100px' });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [enabled]);
-
-  return ref;
-}
-
-export const Sticker = forwardRef(({ id, faded, style, emoji, surl, is_video, onEmojiChange, ...props }, ref) => {
-    const videoRef = usePlayWhenVisible(is_video);
+export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChange, ...props }, ref) => {
 
     return (
       <div className='Sticker-Div' ref={ref} style={style} {...props}>
-          {is_video
-            ? <video ref={videoRef} src={surl} loop muted playsInline />
-            : <Img src={surl} placeholder={loading_gif} alt="Loading..."
-                retry={{ count: 10, delay: 2, acc: false }}
-              />
-          }
+          <Img src={surl} placeholder={loading_gif} alt="Loading..."
+            retry={{ count: 10, delay: 2, acc: false }}
+          ></Img>
         <br />
         <div>
           <label>{id}</label>

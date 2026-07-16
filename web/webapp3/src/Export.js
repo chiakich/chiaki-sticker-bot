@@ -56,8 +56,7 @@ function Export() {
               key={item.id}
               id={item.id}
               emoji={item.emoji}
-              surl={item.surl}
-              is_video={item.is_video} />
+              surl={item.surl} />
           ))
         }
       </StickerGrid>

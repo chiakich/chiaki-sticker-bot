@@ -135,6 +135,35 @@ func apiProxy(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, fileID, time.Time{}, bytes.NewReader(entry.data))
 }
 
+// Animated stickers preview as their static thumbnail. <img> cannot render .tgs
+// at all, and a grid of looping .webm <video> stalls badly on WebKit; reordering
+// only needs a recognizable frame. Thumbnail is optional, so fall back to the
+// sticker itself.
+func webappPreviewFileID(s tele.Sticker) string {
+	if !s.Video && !s.Animated {
+		return s.FileID
+	}
+	if s.Thumbnail != nil && s.Thumbnail.FileID != "" {
+		return s.Thumbnail.FileID
+	}
+	return s.FileID
+}
+
+func proxyContentType(filePath string) string {
+	switch strings.ToLower(path.Ext(filePath)) {
+	case ".webm":
+		return "video/webm"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	default:
+		return "image/webp"
+	}
+}
+
 func getProxyCacheEntry(fileID string) (*proxyCacheEntry, error) {
 	proxyCacheMu.Lock()
 	entry, ok := proxyCache[fileID]
@@ -158,11 +187,7 @@ func getProxyCacheEntry(fileID string) (*proxyCacheEntry, error) {
 		return nil, fmt.Errorf("read body error: %w", err)
 	}
 
-	contentType := "image/webp"
-	if strings.HasSuffix(file.FilePath, ".webm") {
-		contentType = "video/webm"
-	}
-	entry = &proxyCacheEntry{data: data, contentType: contentType}
+	entry = &proxyCacheEntry{data: data, contentType: proxyContentType(file.FilePath)}
 
 	proxyCacheMu.Lock()
 	if len(proxyCache) >= proxyCacheMaxEntries {
@@ -210,8 +235,6 @@ type webappStickerObject struct {
 	FilePath string `json:"file_path"`
 	//Sticker file ID
 	FileID string `json:"file_id"`
-	//Is video sticker (.webm)
-	IsVideo bool `json:"is_video"`
 	//Sticker unique ID
 	UniqueID string `json:"unique_id"`
 	//URL of sticker image.
@@ -264,14 +287,13 @@ func apiSS(c *gin.Context) {
 	sl := []webappStickerObject{}
 	for i, s := range ss.Stickers {
 		proxyUrl, _ := url.JoinPath(msbconf.WebappUrl, "api", "proxy")
-		surl := proxyUrl + "?fileID=" + s.FileID
+		surl := proxyUrl + "?fileID=" + webappPreviewFileID(s)
 		sl = append(sl, webappStickerObject{
 			Id:       i + 1,
 			Emoji:    s.Emoji,
 			Surl:     surl,
 			UniqueID: s.UniqueID,
 			FileID:   s.FileID,
-			IsVideo:  s.Video,
 		})
 		if i == 0 {
 			wss.SSThumb = surl

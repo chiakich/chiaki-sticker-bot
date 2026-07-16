@@ -12,6 +12,11 @@ body {
   color-scheme: var(--tg-color-scheme);
 }
 
+:root {
+  --main-button-height: 56px;
+  --main-button-gap: 12px;
+}
+
 a {
   color: var(--tg-theme-link-color, #2678b6);
 }
@@ -37,13 +42,22 @@ button[disabled] {
 }
 
 button.close_btn {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--main-button-gap) + env(safe-area-inset-bottom, 0px));
+  z-index: 900;
+  width: auto;
+  min-height: var(--main-button-height);
   margin: 0;
   padding: 16px 20px;
   text-transform: uppercase;
+}
+
+.Edit-Page {
+  padding: 0 0 calc(
+    var(--main-button-height) + var(--main-button-gap) + var(--main-button-gap) + env(safe-area-inset-bottom, 0px)
+  );
 }
 
 section {

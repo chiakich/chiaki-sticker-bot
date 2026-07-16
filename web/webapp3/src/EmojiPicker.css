@@ -7,7 +7,14 @@
     justify-content: center;
     z-index: 1000;
     box-sizing: border-box;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(
+        var(--main-button-height, 56px) + var(--main-button-gap, 12px) + var(--main-button-gap, 12px) + env(safe-area-inset-bottom, 0px)
+    );
+    animation: EmojiPickerOverlayIn 180ms ease-out both;
+}
+
+.EmojiPicker-Overlay.closing {
+    animation: EmojiPickerOverlayOut 180ms ease-in both;
 }
 
 .EmojiPicker-Panel {
@@ -15,13 +22,41 @@
     max-width: 480px;
     height: min(
         80vh,
-        calc(var(--tg-viewport-stable-height, 100vh) - 64px - env(safe-area-inset-bottom, 0px))
+        calc(
+            var(--tg-viewport-stable-height, 100vh) - var(--main-button-height, 56px) - var(--main-button-gap, 12px) - var(--main-button-gap, 12px) - env(safe-area-inset-bottom, 0px)
+        )
     );
     background: var(--tg-theme-bg-color, #ffffff);
     border-radius: 12px 12px 0 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    animation: EmojiPickerPanelIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform;
+}
+
+.EmojiPicker-Overlay.closing .EmojiPicker-Panel {
+    animation: EmojiPickerPanelOut 180ms ease-in both;
+}
+
+@keyframes EmojiPickerOverlayIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes EmojiPickerOverlayOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes EmojiPickerPanelIn {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+@keyframes EmojiPickerPanelOut {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
 }
 
 .EmojiPicker-Header {

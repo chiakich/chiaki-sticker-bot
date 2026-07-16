@@ -58,6 +58,7 @@ const CATEGORIES = [
 
 export function EmojiPickerPopup({ surl, emoji, onSelect, onClear, onClose }) {
   const [activeCategory, setActiveCategory] = useState(0);
+  const [isClosing, setIsClosing] = useState(false);
   const gridRef = useRef(null);
 
   function selectCategory(i) {
@@ -67,12 +68,22 @@ export function EmojiPickerPopup({ surl, emoji, onSelect, onClear, onClose }) {
     }
   }
 
+  function requestClose() {
+    setIsClosing(true);
+  }
+
+  function handlePanelAnimationEnd() {
+    if (isClosing) {
+      onClose();
+    }
+  }
+
   return (
-    <div className="EmojiPicker-Overlay" onClick={onClose}>
-      <div className="EmojiPicker-Panel" onClick={(e) => e.stopPropagation()}>
+    <div className={'EmojiPicker-Overlay' + (isClosing ? ' closing' : '')} onClick={requestClose}>
+      <div className="EmojiPicker-Panel" onClick={(e) => e.stopPropagation()} onAnimationEnd={handlePanelAnimationEnd}>
         <div className="EmojiPicker-Header">
           <span>選擇 Emoji / Pick Emoji</span>
-          <button type="button" className="EmojiPicker-Close" onClick={onClose}>✕</button>
+          <button type="button" className="EmojiPicker-Close" onClick={requestClose}>✕</button>
         </div>
         <div className="EmojiPicker-Preview">
           <img className="EmojiPicker-PreviewThumb" src={surl} alt="" />
@@ -100,7 +111,7 @@ export function EmojiPickerPopup({ surl, emoji, onSelect, onClear, onClose }) {
           <button type="button" className="EmojiPicker-ClearBtn" onClick={onClear}>
             Clear / 清空
           </button>
-          <button type="button" className="EmojiPicker-DoneBtn" onClick={onClose}>
+          <button type="button" className="EmojiPicker-DoneBtn" onClick={requestClose}>
             Done / 完成
           </button>
         </div>

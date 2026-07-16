@@ -76,7 +76,7 @@ function Edit() {
   }
 
   return (
-    <div>
+    <div className="Edit-Page">
       <h3>Please hold and drag to reorder</h3>
       <h3>請按住並拖拽來排序</h3>
       <DndContext

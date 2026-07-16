@@ -56,7 +56,7 @@ const CATEGORIES = [
   },
 ];
 
-export function EmojiPickerPopup({ onSelect, onClear, onClose }) {
+export function EmojiPickerPopup({ surl, emoji, onSelect, onClear, onClose }) {
   const [activeCategory, setActiveCategory] = useState(0);
   const gridRef = useRef(null);
 
@@ -73,6 +73,10 @@ export function EmojiPickerPopup({ onSelect, onClear, onClose }) {
         <div className="EmojiPicker-Header">
           <span>選擇 Emoji / Pick Emoji</span>
           <button type="button" className="EmojiPicker-Close" onClick={onClose}>✕</button>
+        </div>
+        <div className="EmojiPicker-Preview">
+          <img className="EmojiPicker-PreviewThumb" src={surl} alt="" />
+          <div className="EmojiPicker-PreviewEmoji">{emoji || '尚未選擇 / None'}</div>
         </div>
         <div className="EmojiPicker-Grid" ref={gridRef}>
           {CATEGORIES[activeCategory].emojis.map((e, i) => (

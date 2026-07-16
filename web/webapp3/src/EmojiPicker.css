@@ -11,7 +11,7 @@
 .EmojiPicker-Panel {
     width: 100%;
     max-width: 480px;
-    max-height: 60vh;
+    max-height: 80vh;
     background: var(--tg-theme-bg-color, #ffffff);
     border-radius: 12px 12px 0 0;
     display: flex;
@@ -39,13 +39,43 @@
     font-size: 16px;
 }
 
+.EmojiPicker-Preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.EmojiPicker-PreviewThumb {
+    display: block;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    object-fit: contain;
+}
+
+.EmojiPicker-PreviewEmoji {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 20px;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    color: var(--tg-theme-text-color, #222222);
+}
+
 .EmojiPicker-Grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
     padding: 10px;
     overflow-y: auto;
-    min-height: 200px;
+    /* flex-basis 0 + min-height 0 lets this shrink below its content's
+       natural height on short screens, so the footer buttons stay visible
+       instead of being pushed past the panel's max-height and clipped. */
+    flex: 1 1 0%;
+    min-height: 0;
 }
 
 .EmojiPicker-Panel button.EmojiPicker-Item {

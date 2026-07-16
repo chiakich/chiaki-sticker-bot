@@ -8,8 +8,8 @@ export function StickerGrid({children, columns}) {
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, 1fr)`,
         gridGap: 10,
-        padding: 10,
-        
+        padding: 0,
+        margin: 0,
       }}
     >
       {children}

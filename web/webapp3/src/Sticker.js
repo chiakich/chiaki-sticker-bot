@@ -16,7 +16,6 @@ export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChang
           <Img src={surl} placeholder={loading_gif} alt="Loading..."
             retry={{ count: 10, delay: 2, acc: false }}
           ></Img>
-        <br />
         <div className="Emoji-Row">
           <label>{id}</label>
           <input type="text" value={emoji}
@@ -26,6 +25,8 @@ export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChang
         </div>
         {pickerOpen &&
           <EmojiPickerPopup
+            surl={surl}
+            emoji={emoji}
             onSelect={(e) => onEmojiChange?.(id, (emoji || '') + e)}
             onClear={() => onEmojiChange?.(id, '')}
             onClose={() => setPickerOpen(false)}

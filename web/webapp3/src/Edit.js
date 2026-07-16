@@ -53,7 +53,7 @@ function Edit() {
       })
       .catch(() => { })
 
-    window.Telegram.WebApp.MainButton.setText('Done/完成').show()
+    window.Telegram.WebApp.MainButton.setText('Done / 完成').show()
       .onClick(() => {
         const uid = window.Telegram.WebApp.initDataUnsafe.user.id
         const queryId = window.Telegram.WebApp.initDataUnsafe.query_id
@@ -71,13 +71,12 @@ function Edit() {
             }
           });
       });
-    // This is to address Android specific bug.
-    // Expanding the webapp by swiping the content up
-    // might cause dnd-context to freeze and cannot be recovered.
-    // iOS is not affected.
-    if (window.Telegram.WebApp.platform === "android") {
-      window.Telegram.WebApp.expand()
-    }
+    // Originally Android-only: expanding the webapp by swiping the content
+    // up might cause dnd-context to freeze and cannot be recovered, so we
+    // call expand() upfront to avoid that interaction path. Calling it
+    // unconditionally on iOS too since it settles the viewport at full
+    // height right away instead of the half-expanded state.
+    window.Telegram.WebApp.expand()
   }, []) //useEffect
 
   if (items == null) {

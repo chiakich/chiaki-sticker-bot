@@ -98,10 +98,10 @@ export function EmojiPickerPopup({ surl, emoji, onSelect, onClear, onClose }) {
         </div>
         <div className="EmojiPicker-Footer">
           <button type="button" className="EmojiPicker-ClearBtn" onClick={onClear}>
-            清空 / Clear
+            Clear / 清空
           </button>
           <button type="button" className="EmojiPicker-DoneBtn" onClick={onClose}>
-            完成 / Done
+            Done / 完成
           </button>
         </div>
       </div>

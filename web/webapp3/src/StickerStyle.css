@@ -14,3 +14,11 @@ img {
 .Sticker-Div {
     touch-action: manipulation;
 }
+
+.Sticker-Div button.Emoji-Picker-Toggle {
+    display: inline-block;
+    width: auto;
+    margin: 0 0 0 4px;
+    padding: 2px 6px;
+    font-size: 14px;
+}

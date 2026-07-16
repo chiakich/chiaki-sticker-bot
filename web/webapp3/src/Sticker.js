@@ -1,12 +1,14 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
 // import axios from 'axios';
 import Img from "react-cool-img";
 import './StickerStyle.css'
 import loading_gif from './loading.gif'
+import { EmojiPickerPopup } from './EmojiPicker'
 
 
 
 export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChange, ...props }, ref) => {
+    const [pickerOpen, setPickerOpen] = useState(false);
 
     return (
       <div className='Sticker-Div' ref={ref} style={style} {...props}>
@@ -17,8 +19,17 @@ export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChang
         <div>
           <label>{id}</label>
           <input type="text" value={emoji} size="6"
-            onChange={(e) => onEmojiChange(id, e.target.value)}></input>
+            onChange={(e) => onEmojiChange?.(id, e.target.value)}></input>
+          <button type="button" className="Emoji-Picker-Toggle"
+            onClick={() => setPickerOpen(true)}>😀</button>
         </div>
+        {pickerOpen &&
+          <EmojiPickerPopup
+            onSelect={(e) => onEmojiChange?.(id, (emoji || '') + e)}
+            onClear={() => onEmojiChange?.(id, '')}
+            onClose={() => setPickerOpen(false)}
+          />
+        }
       </div>
     );
 });

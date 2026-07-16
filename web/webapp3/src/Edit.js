@@ -26,6 +26,7 @@ let resultArray;
 function Edit() {
   const [items, setItems] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   // const [ss, setSS] = useState(null)
 
   const [, forceUpdate] = useReducer(x => x + 1, 0);
@@ -45,6 +46,7 @@ function Edit() {
   );
 
   useEffect(() => {
+    resultArray = undefined;
     const uid = window.Telegram.WebApp.initDataUnsafe.user.id
     const queryId = window.Telegram.WebApp.initDataUnsafe.query_id
     axios.get(`/webapp/api/ss?uid=${uid}&qid=${queryId}&cmd=edit`)
@@ -53,24 +55,6 @@ function Edit() {
       })
       .catch(() => { })
 
-    window.Telegram.WebApp.MainButton.setText('Done / 完成').show()
-      .onClick(() => {
-        const uid = window.Telegram.WebApp.initDataUnsafe.user.id
-        const queryId = window.Telegram.WebApp.initDataUnsafe.query_id
-        axios.post(
-          `/webapp/api/edit/result?uid=${uid}&qid=${queryId}`,
-          JSON.stringify(resultArray))
-          .then(() => {
-            window.Telegram.WebApp.close();
-          })
-          .catch((error) => {
-            if (error.response) {
-              window.Telegram.WebApp.showAlert(error + "\n" + error.response.data)
-            } else {
-              window.Telegram.WebApp.showAlert(error)
-            }
-          });
-      });
     window.Telegram.WebApp.expand()
   }, []) //useEffect
 
@@ -127,8 +111,31 @@ function Edit() {
             : null}
         </DragOverlay>
       </DndContext>
+      <button className="close_btn" onClick={handleDoneClick} disabled={isSubmitting}>
+        {isSubmitting ? 'Saving... / 儲存中...' : 'Done / 完成'}
+      </button>
     </div>
   );
+
+  function handleDoneClick() {
+    setIsSubmitting(true);
+    const uid = window.Telegram.WebApp.initDataUnsafe.user.id
+    const queryId = window.Telegram.WebApp.initDataUnsafe.query_id
+    axios.post(
+      `/webapp/api/edit/result?uid=${uid}&qid=${queryId}`,
+      JSON.stringify(resultArray))
+      .then(() => {
+        window.Telegram.WebApp.close();
+      })
+      .catch((error) => {
+        setIsSubmitting(false);
+        if (error.response) {
+          window.Telegram.WebApp.showAlert(error + "\n" + error.response.data)
+        } else {
+          window.Telegram.WebApp.showAlert(error)
+        }
+      });
+  }
 
   function handleDragStart(event) {
     setActiveId(event.active.id);

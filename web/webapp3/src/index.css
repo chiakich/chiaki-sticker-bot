@@ -23,7 +23,8 @@ button {
   margin: 15px 0;
   padding: 12px 20px;
   border: none;
-  border-radius: 4px;
+  border-radius: 24px;
+  corner-shape: squircle;
   background-color: var(--tg-theme-button-color, #50a8eb);
   color: var(--tg-theme-button-text-color, #ffffff);
   cursor: pointer;
@@ -40,7 +41,6 @@ button.close_btn {
   left: 0;
   right: 0;
   bottom: 0;
-  border-radius: 0;
   margin: 0;
   padding: 16px 20px;
   text-transform: uppercase;

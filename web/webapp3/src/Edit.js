@@ -130,6 +130,7 @@ function Edit() {
               id={activeId}
               surl={items[items.map(o => o.id).indexOf(activeId)].surl}
               emoji={items[items.map(o => o.id).indexOf(activeId)].emoji}
+              is_video={items[items.map(o => o.id).indexOf(activeId)].is_video}
             />
             : null}
         </DragOverlay>

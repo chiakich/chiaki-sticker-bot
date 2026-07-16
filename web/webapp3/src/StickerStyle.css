@@ -6,6 +6,15 @@ img {
     height: auto;
 }
 
+/* Matches the img box above. Fixed rather than auto so the grid does not
+   reflow when video metadata arrives. */
+video {
+    display: block;
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
 .Image-div {
     width: 64px;
     height: 64px;

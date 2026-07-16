@@ -4,6 +4,7 @@ import Img from "react-cool-img";
 import './StickerStyle.css'
 import loading_gif from './loading.gif'
 import { EmojiPickerPopup } from './EmojiPicker'
+import { EmojiAddIcon } from './EmojiAddIcon'
 
 
 
@@ -16,12 +17,12 @@ export const Sticker = forwardRef(({ id, faded, style, emoji, surl, onEmojiChang
             retry={{ count: 10, delay: 2, acc: false }}
           ></Img>
         <br />
-        <div>
+        <div className="Emoji-Row">
           <label>{id}</label>
-          <input type="text" value={emoji} size="6"
+          <input type="text" value={emoji}
             onChange={(e) => onEmojiChange?.(id, e.target.value)}></input>
           <button type="button" className="Emoji-Picker-Toggle"
-            onClick={() => setPickerOpen(true)}>😀</button>
+            onClick={() => setPickerOpen(true)}><EmojiAddIcon /></button>
         </div>
         {pickerOpen &&
           <EmojiPickerPopup

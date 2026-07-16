@@ -4,6 +4,7 @@ img {
     max-height: 64px;
     width: auto;
     height: auto;
+    margin: 0 auto;
 }
 
 .Image-div {
@@ -15,10 +16,29 @@ img {
     touch-action: manipulation;
 }
 
-.Sticker-Div button.Emoji-Picker-Toggle {
-    display: inline-block;
+.Sticker-Div .Emoji-Row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.Sticker-Div .Emoji-Row input[type="text"] {
+    flex: 1 1 auto;
     width: auto;
-    margin: 0 0 0 4px;
-    padding: 2px 6px;
-    font-size: 14px;
+    min-width: 0;
+}
+
+.Sticker-Div button.Emoji-Picker-Toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--tg-theme-hint-color, #a8a8a8);
 }
